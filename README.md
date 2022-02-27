@@ -21,7 +21,7 @@ gleam add gleam_mongo
 - [ ] support authentication
 - [ ] support connection strings
 - [ ] support tls
-- [ ] support other mongodb commands]
+- [ ] support other mongodb commands
 - [ ] support connection pooling
 - [ ] support clusters
 
