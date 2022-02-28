@@ -8,6 +8,6 @@ pub type FindOption {
 }
 
 pub type UpdateOption {
-  Upsert(Bool)
+  Upsert
   ArrayFilters(List(types.Value))
 }

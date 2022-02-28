@@ -171,10 +171,7 @@ pub fn update_many(
               [],
               fn(acc, opt) {
                 case opt {
-                  utils.Upsert(upsert) -> [
-                    #("upsert", types.Boolean(upsert)),
-                    ..acc
-                  ]
+                  utils.Upsert -> [#("upsert", types.Boolean(True)), ..acc]
                   utils.ArrayFilters(filters) -> [
                     #("arrayFilters", types.Array(filters)),
                     ..acc
@@ -269,10 +266,7 @@ pub fn update_one(
               [],
               fn(acc, opt) {
                 case opt {
-                  utils.Upsert(upsert) -> [
-                    #("upsert", types.Boolean(upsert)),
-                    ..acc
-                  ]
+                  utils.Upsert -> [#("upsert", types.Boolean(True)), ..acc]
                   utils.ArrayFilters(filters) -> [
                     #("arrayFilters", types.Array(filters)),
                     ..acc

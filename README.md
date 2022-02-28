@@ -58,7 +58,7 @@ pub fn main() {
     types.Document([
       #("$set", types.Document([#("last_name", types.Str("Ritchie"))])),
     ]),
-    [utils.Upsert(True)],
+    [utils.Upsert],
   )
 
   collection
