@@ -1,54 +1,71 @@
 import mongo/crud
 import mongo/client
 
-pub fn connect(ip, port) {
-  client.connect(ip, port)
-}
-
-pub fn db(connection, name) {
-  client.db(connection, name)
+pub fn connect(uri) {
+  client.connect(uri)
 }
 
 pub fn collection(db, name) {
-  client.collection(db, name)
+  db
+  |> client.collection(name)
 }
 
 pub fn count_all(collection) {
-  crud.count_all(collection)
+  collection
+  |> crud.count_all
 }
 
 pub fn count(collection, filter) {
-  crud.count(collection, filter)
+  collection
+  |> crud.count(filter)
+}
+
+pub fn find_by_id(collection, id) {
+  collection
+  |> crud.find_by_id(id)
 }
 
 pub fn insert_one(collection, doc) {
-  crud.insert_one(collection, doc)
+  collection
+  |> crud.insert_one(doc)
 }
 
 pub fn insert_many(collection, docs) {
-  crud.insert_many(collection, docs)
-}
-
-pub fn delete_one(collection, filter) {
-  crud.delete_one(collection, filter)
-}
-
-pub fn delete_many(collection, filter) {
-  crud.delete_many(collection, filter)
+  collection
+  |> crud.insert_many(docs)
 }
 
 pub fn find_all(collection, options) {
-  crud.find_all(collection, options)
+  collection
+  |> crud.find_all(options)
 }
 
-pub fn find(collection, filter, options) {
-  crud.find(collection, filter, options)
+pub fn delete_one(collection, filter) {
+  collection
+  |> crud.delete_one(filter)
+}
+
+pub fn delete_many(collection, filter) {
+  collection
+  |> crud.delete_many(filter)
+}
+
+pub fn find_many(collection, filter, options) {
+  collection
+  |> crud.find_many(filter, options)
+}
+
+pub fn find_one(collection, filter, projection) {
+  collection
+  |> crud.find_one(filter, projection)
 }
 
 pub fn update_one(collection, filter, change, options) {
-  crud.update_one(collection, filter, change, options)
+  collection
+  |> crud.update_one(filter, change, options)
 }
 
 pub fn update_many(collection, filter, change, options) {
-  crud.update_many(collection, filter, change, options)
+  collection
+  |> crud.update_many(filter, change, options)
 }

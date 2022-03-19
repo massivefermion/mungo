@@ -18,11 +18,12 @@ gleam add gleam_mongo
 
 - [x] support basic mongodb commands
 - [x] support aggregation
+- [x] support connection strings
 - [ ] support authentication
-- [ ] support connection strings
-- [ ] support tls
 - [ ] support other mongodb commands
+- [ ] support mongodb cursors
 - [ ] support connection pooling
+- [ ] support tls
 - [ ] support clusters
 
 ## Usage
@@ -36,13 +37,9 @@ import mongo/utils
 import mongo/aggregation.{aggregate, exec, lookup, match}
 
 pub fn main() {
-  assert Ok(conn) = mongo.connect("127.0.0.1", 27017)
+  assert Ok(db) = mongo.connect("mongodb://localhost/app_db")
 
-  let db =
-    conn
-    |> mongo.db("app_db")
-
-  let collection =
+  let users =
     db
     |> mongo.collection("users")
 

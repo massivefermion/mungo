@@ -1,6 +1,7 @@
 import bson/types
 import gleam/list
 import mongo/client
+import mongo/utils.{MongoError, default_error}
 
 pub opaque type Pipeline {
   Pipeline(collection: client.Collection, stages: List(types.Value))
@@ -100,19 +101,19 @@ pub fn exec(pipeline: Pipeline) {
   case client.execute(
     pipeline.collection,
     types.Document([
+      #("aggregate", types.Str(pipeline.collection.name)),
       #("cursor", types.Document([])),
       #("pipeline", types.Array(pipeline.stages)),
-      #("aggregate", types.Str(pipeline.collection.name)),
     ]),
   ) {
     Ok(result) -> {
-      let [#("ok", ok), #("cursor", types.Document(result))] = result
-      let [#("ns", _), #("id", _), #("firstBatch", types.Array(docs))] = result
+      let [#("cursor", types.Document(result)), #("ok", ok)] = result
+      let [#("firstBatch", types.Array(docs)), #("id", _), #("ns", _)] = result
       case ok {
         types.Double(1.0) -> Ok(docs)
-        _ -> Error(Nil)
+        _ -> Error(default_error)
       }
     }
-    Error(Nil) -> Error(Nil)
+    Error(#(code, msg)) -> Error(MongoError(code, msg, source: types.Null))
   }
 }

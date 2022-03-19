@@ -1,5 +1,5 @@
 name = "gleam_mongo"
-version = "0.1.3"
+version = "0.2.0"
 
 licences = ["Apache-2.0"]
 description = "A mongodb driver for gleam"
@@ -8,4 +8,7 @@ links = [{ title = "gleam_bson", href = "https://hex.pm/packages/gleam_bson" }]
 
 [dependencies]
 gleam_stdlib = "~> 0.20"
-gleam_bson = "~> 0.3"
+gleam_bson = "~> 0.8"
+
+[dev-dependencies]
+gleeunit = "~> 0.6"

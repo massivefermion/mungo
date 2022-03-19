@@ -1,6 +1,6 @@
-import gleam/int
 import gleam/list
 import gleam/string
+import gleam/bit_string
 
 pub external type Socket
 
@@ -13,11 +13,7 @@ type TCPOption {
   Active(Bool)
 }
 
-external fn tcp_connect(
-  #(Int, Int, Int, Int),
-  Int,
-  List(TCPOption),
-) -> Result(Socket, Nil) =
+external fn tcp_connect(List(Int), Int, List(TCPOption)) -> Result(Socket, Nil) =
   "gen_tcp" "connect"
 
 external fn tcp_send(Socket, BitString) -> TCPResult =
@@ -27,18 +23,18 @@ external fn tcp_receive(Socket, Int) -> Result(BitString, Nil) =
   "gen_tcp" "recv"
 
 pub fn connect(host: String, port: Int) {
-  let [a, b, c, d] =
-    string.split(host, ".")
-    |> list.map(fn(i) {
-      i
-      |> int.parse
-    })
-    |> list.map(fn(i) {
-      assert Ok(i) = i
-      i
-    })
-
-  tcp_connect(#(a, b, c, d), port, [Binary, Active(False)])
+  tcp_connect(
+    host
+    |> string.to_graphemes
+    |> list.map(fn(char) {
+      let <<code>> =
+        char
+        |> bit_string.from_string
+      code
+    }),
+    port,
+    [Binary, Active(False)],
+  )
 }
 
 pub fn send(socket, data) {
