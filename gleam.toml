@@ -1,14 +1,16 @@
 name = "gleam_mongo"
-version = "0.2.0"
+version = "0.3.0"
 
 licences = ["Apache-2.0"]
 description = "A mongodb driver for gleam"
 repository = { type = "github", user = "massivefermion", repo = "gleam_mongo" }
-links = [{ title = "gleam_bson", href = "https://hex.pm/packages/gleam_bson" }]
+links = [{ title = "gleam_bson", href = "https://hexdocs.pm/gleam_bson" }]
 
 [dependencies]
 gleam_stdlib = "~> 0.20"
-gleam_bson = "~> 0.8"
+gleam_bson = "~> 0.10"
+gleam_crypto = "~> 0.3"
+gleam_bitwise = "~> 1.1"
 
 [dev-dependencies]
 gleeunit = "~> 0.6"
