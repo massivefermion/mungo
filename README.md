@@ -53,7 +53,6 @@ pub fn main() {
     #("name", types.Str("Alissa")),
     #("race", types.Str("human")),
   ]))
-  |> io.debug
 
   characters
   |> mongo.update_one(
