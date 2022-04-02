@@ -34,7 +34,7 @@ pub fn connect(uri: String) -> Result(Database, Nil) {
       case auth {
         option.None -> Ok(Database(socket, db))
         option.Some(#(username, password)) -> {
-          try _reply = case auth_source {
+          try _ = case auth_source {
             option.None ->
               socket
               |> authenticate(username, password, db)
@@ -89,7 +89,7 @@ fn authenticate(
 
   try #(server_params, server_payload, cid) = scram.parse_first_reply(reply)
 
-  try #(second, _server_signature) =
+  try #(second, server_signature) =
     scram.second_message(
       server_params,
       first_payload,
@@ -104,7 +104,9 @@ fn authenticate(
 
   case reply {
     [#("ok", types.Double(0.0)), ..] -> Error(Nil)
-    reply -> Ok(reply)
+    reply ->
+      reply
+      |> scram.parse_second_reply(server_signature)
   }
 }
 

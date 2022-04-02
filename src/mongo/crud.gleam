@@ -276,8 +276,8 @@ fn update(
                 "upserted",
                 types.Array([
                   types.Document([
-                    #("_id", types.ObjectId(upserted)),
                     #("index", _),
+                    #("_id", types.ObjectId(upserted)),
                   ]),
                 ]),
               ),

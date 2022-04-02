@@ -40,8 +40,7 @@ pub fn first_message(payload) {
 
 pub fn parse_first_reply(reply: List(#(String, types.Value))) {
   case reply {
-    [#("ok", types.Double(0.0)), #("errmsg", _), #("code", _), #("codeName", _)] ->
-      Error(Nil)
+    [#("ok", types.Double(0.0)), ..] -> Error(Nil)
 
     [
       #("conversationId", types.Integer(cid)),
@@ -141,6 +140,33 @@ pub fn second_message(
     ]),
     server_signature,
   ))
+}
+
+pub fn parse_second_reply(
+  reply: List(#(String, types.Value)),
+  server_signature: BitString,
+) {
+  case reply {
+    [#("ok", types.Double(0.0)), ..] -> Error(Nil)
+    [
+      #("conversationId", _),
+      #("done", types.Boolean(True)),
+      #("payload", types.Binary(types.Generic(data))),
+      #("ok", types.Double(1.0)),
+    ] -> {
+      try data =
+        data
+        |> generic.to_string
+      try [#("v", data)] = parse_payload(data)
+      try received_signature = base.decode64(data)
+      case bit_string.byte_size(server_signature) == bit_string.byte_size(
+        received_signature,
+      ) && crypto.secure_compare(server_signature, received_signature) {
+        True -> Ok(Nil)
+        False -> Error(Nil)
+      }
+    }
+  }
 }
 
 fn parse_payload(payload: String) {
