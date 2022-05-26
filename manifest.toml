@@ -3,15 +3,15 @@
 
 packages = [
   { name = "gleam_bitwise", version = "1.1.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_bitwise", source = "hex", outer_checksum = "8C32EC46F4D805350202E59F15B057AB4A79F3847F3EEC5B49AFF0C4EA7E3576" },
-  { name = "gleam_bson", version = "0.12.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_bson", source = "hex", outer_checksum = "9D9C5E1CFF9EEDCF91323F5F78EEDDBE0023853CC37C0C72C0E7D8E1C485CEC1" },
-  { name = "gleam_crypto", version = "0.3.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_bitwise"], otp_app = "gleam_crypto", source = "hex", outer_checksum = "223ED23E48DD712417370240628E79D0AF4821ADC53A4BB17E22F6BBF755C2E2" },
-  { name = "gleam_stdlib", version = "0.20.0", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "E5715F0CDCB3AB1BB73C6C35E46DA223997F680550E17CE46BC88B710E061CCE" },
+  { name = "gleam_bson", version = "0.13.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_bson", source = "hex", outer_checksum = "B5E6DA02C895EDD8DB8C97CAF9109BFDB2C6564E8028ABBD90960CCD6E679302" },
+  { name = "gleam_crypto", version = "0.3.0", build_tools = ["gleam"], requirements = ["gleam_bitwise", "gleam_stdlib"], otp_app = "gleam_crypto", source = "hex", outer_checksum = "223ED23E48DD712417370240628E79D0AF4821ADC53A4BB17E22F6BBF755C2E2" },
+  { name = "gleam_stdlib", version = "0.21.0", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "FB03CD50B477867DA65B1318252ABA02F76175754762D15BF6C792CF5B85BCC4" },
   { name = "gleeunit", version = "0.6.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "5BF486C3E135B7F5ED8C054925FC48E5B2C79016A39F416FD8CF2E860520EE55" },
 ]
 
 [requirements]
 gleam_bitwise = "~> 1.1"
-gleam_bson = "~> 0.12"
+gleam_bson = "~> 0.13"
 gleam_crypto = "~> 0.3"
-gleam_stdlib = "~> 0.20"
+gleam_stdlib = "~> 0.21"
 gleeunit = "~> 0.6"
