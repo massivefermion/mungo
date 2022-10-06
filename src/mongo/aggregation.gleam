@@ -11,11 +11,16 @@ pub fn aggregate(collection: client.Collection) -> Pipeline {
   Pipeline(collection, stages: [])
 }
 
-pub fn match(pipeline: Pipeline, doc: types.Value) {
-  Pipeline(
-    collection: pipeline.collection,
-    stages: list.append(pipeline.stages, [types.Document([#("$match", doc)])]),
+pub fn stages(pipeline: Pipeline, docs: List(types.Value)) {
+  list.fold(
+    docs,
+    pipeline,
+    fn(new_pipeline, current) { append_stage(new_pipeline, current) },
   )
+}
+
+pub fn match(pipeline: Pipeline, doc: types.Value) {
+  append_stage(pipeline, types.Document([#("$match", doc)]))
 }
 
 pub fn lookup(
@@ -25,87 +30,57 @@ pub fn lookup(
   foreign_field foreign_field: String,
   alias alias: String,
 ) {
-  Pipeline(
-    collection: pipeline.collection,
-    stages: list.append(
-      pipeline.stages,
-      [
+  append_stage(
+    pipeline,
+    types.Document([
+      #(
+        "$lookup",
         types.Document([
-          #(
-            "$lookup",
-            types.Document([
-              #("from", types.Str(from)),
-              #("localField", types.Str(local_field)),
-              #("foreignField", types.Str(foreign_field)),
-              #("as", types.Str(alias)),
-            ]),
-          ),
+          #("from", types.Str(from)),
+          #("localField", types.Str(local_field)),
+          #("foreignField", types.Str(foreign_field)),
+          #("as", types.Str(alias)),
         ]),
-      ],
-    ),
+      ),
+    ]),
   )
 }
 
 pub fn project(pipeline: Pipeline, doc: types.Value) {
-  Pipeline(
-    collection: pipeline.collection,
-    stages: list.append(pipeline.stages, [types.Document([#("$project", doc)])]),
-  )
+  append_stage(pipeline, types.Document([#("$project", doc)]))
 }
 
 pub fn add_fields(pipeline: Pipeline, doc: types.Value) {
-  Pipeline(
-    collection: pipeline.collection,
-    stages: list.append(
-      pipeline.stages,
-      [types.Document([#("$addFields", doc)])],
-    ),
-  )
+  append_stage(pipeline, types.Document([#("$addFields", doc)]))
 }
 
 pub fn sort(pipeline: Pipeline, doc: types.Value) {
-  Pipeline(
-    collection: pipeline.collection,
-    stages: list.append(pipeline.stages, [types.Document([#("$sort", doc)])]),
-  )
+  append_stage(pipeline, types.Document([#("$sort", doc)]))
 }
 
 pub fn group(pipeline: Pipeline, doc: types.Value) {
-  Pipeline(
-    collection: pipeline.collection,
-    stages: list.append(pipeline.stages, [types.Document([#("$group", doc)])]),
-  )
+  append_stage(pipeline, types.Document([#("$group", doc)]))
 }
 
 pub fn skip(pipeline: Pipeline, count: Int) {
-  Pipeline(
-    collection: pipeline.collection,
-    stages: list.append(
-      pipeline.stages,
-      [types.Document([#("$skip", types.Integer(count))])],
-    ),
-  )
+  append_stage(pipeline, types.Document([#("$skip", types.Integer(count))]))
 }
 
 pub fn limit(pipeline: Pipeline, count: Int) {
-  Pipeline(
-    collection: pipeline.collection,
-    stages: list.append(
-      pipeline.stages,
-      [types.Document([#("$limit", types.Integer(count))])],
-    ),
-  )
+  append_stage(pipeline, types.Document([#("$limit", types.Integer(count))]))
 }
 
 pub fn exec(pipeline: Pipeline) {
-  case client.execute(
-    pipeline.collection,
-    types.Document([
-      #("aggregate", types.Str(pipeline.collection.name)),
-      #("cursor", types.Document([])),
-      #("pipeline", types.Array(pipeline.stages)),
-    ]),
-  ) {
+  case
+    client.execute(
+      pipeline.collection,
+      types.Document([
+        #("aggregate", types.Str(pipeline.collection.name)),
+        #("cursor", types.Document([])),
+        #("pipeline", types.Array(pipeline.stages)),
+      ]),
+    )
+  {
     Ok(result) -> {
       let [#("cursor", types.Document(result)), #("ok", ok)] = result
       let [#("firstBatch", types.Array(docs)), #("id", _), #("ns", _)] = result
@@ -116,4 +91,14 @@ pub fn exec(pipeline: Pipeline) {
     }
     Error(#(code, msg)) -> Error(MongoError(code, msg, source: types.Null))
   }
+}
+
+fn append_stage(pipeline: Pipeline, stage: types.Value) {
+  Pipeline(
+    collection: pipeline.collection,
+    stages: pipeline.stages
+    |> list.reverse
+    |> list.prepend(stage)
+    |> list.reverse,
+  )
 }
