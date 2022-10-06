@@ -51,11 +51,8 @@ pub fn parse_first_reply(reply: List(#(String, types.Value))) {
       try data =
         data
         |> generic.to_string
-      try [#("r", rnonce), #("s", salt), #("i", i)] =
-        data
-        |> parse_payload
-      case i
-      |> int.parse {
+      try [#("r", rnonce), #("s", salt), #("i", i)] = parse_payload(data)
+      case int.parse(i) {
         Ok(iterations) ->
           case iterations >= 4096 {
             True -> Ok(#(#(rnonce, salt, iterations), data, cid))
@@ -76,9 +73,7 @@ pub fn second_message(
 ) {
   let #(rnonce, salt, iterations) = server_params
 
-  try salt =
-    salt
-    |> base.decode64
+  try salt = base.decode64(salt)
 
   let salted_password = hi(password, salt, iterations)
 
@@ -106,12 +101,7 @@ pub fn second_message(
     |> generic.from_string
 
   let client_signature =
-    crypto.hmac(
-      auth_message
-      |> generic.to_bit_string,
-      crypto.Sha256,
-      stored_key,
-    )
+    crypto.hmac(generic.to_bit_string(auth_message), crypto.Sha256, stored_key)
 
   let second_payload =
     [
@@ -132,14 +122,15 @@ pub fn second_message(
       server_key,
     )
 
-  Ok(#(
+  #(
     types.Document([
       #("saslContinue", types.Boolean(True)),
       #("conversationId", types.Integer(cid)),
       #("payload", types.Binary(types.Generic(second_payload))),
     ]),
     server_signature,
-  ))
+  )
+  |> Ok
 }
 
 pub fn parse_second_reply(
@@ -159,9 +150,11 @@ pub fn parse_second_reply(
         |> generic.to_string
       try [#("v", data)] = parse_payload(data)
       try received_signature = base.decode64(data)
-      case bit_string.byte_size(server_signature) == bit_string.byte_size(
-        received_signature,
-      ) && crypto.secure_compare(server_signature, received_signature) {
+      case
+        bit_string.byte_size(server_signature) == bit_string.byte_size(
+          received_signature,
+        ) && crypto.secure_compare(server_signature, received_signature)
+      {
         True -> Ok(Nil)
         False -> Error(Nil)
       }
@@ -172,10 +165,7 @@ pub fn parse_second_reply(
 fn parse_payload(payload: String) {
   payload
   |> string.split(",")
-  |> list.try_map(fn(item) {
-    item
-    |> string.split_once("=")
-  })
+  |> list.try_map(fn(item) { string.split_once(item, "=") })
 }
 
 fn clean_username(username: String) {

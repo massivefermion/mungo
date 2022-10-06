@@ -35,12 +35,9 @@ pub fn connect(uri: String) -> Result(Database, Nil) {
         option.None -> Ok(Database(socket, db))
         option.Some(#(username, password)) -> {
           try _ = case auth_source {
-            option.None ->
-              socket
-              |> authenticate(username, password, db)
+            option.None -> authenticate(socket, username, password, db)
             option.Some(source) ->
-              socket
-              |> authenticate(username, password, source)
+              authenticate(socket, username, password, source)
           }
           Ok(Database(socket, db))
         }
@@ -59,8 +56,7 @@ pub fn execute(
 ) -> Result(List(#(String, types.Value)), #(Int, String)) {
   case collection.db {
     Database(socket, name) ->
-      case socket
-      |> send_cmd(name, cmd) {
+      case send_cmd(socket, name, cmd) {
         Ok([
           #("ok", types.Double(0.0)),
           #("errmsg", types.Str(msg)),
@@ -83,9 +79,7 @@ fn authenticate(
 
   let first = scram.first_message(first_payload)
 
-  try reply =
-    socket
-    |> send_cmd(auth_source, first)
+  try reply = send_cmd(socket, auth_source, first)
 
   try #(server_params, server_payload, cid) = scram.parse_first_reply(reply)
 
@@ -98,15 +92,11 @@ fn authenticate(
       password,
     )
 
-  try reply =
-    socket
-    |> send_cmd(auth_source, second)
+  try reply = send_cmd(socket, auth_source, second)
 
   case reply {
     [#("ok", types.Double(0.0)), ..] -> Error(Nil)
-    reply ->
-      reply
-      |> scram.parse_second_reply(server_signature)
+    reply -> scram.parse_second_reply(reply, server_signature)
   }
 }
 
@@ -123,14 +113,11 @@ fn send_cmd(
   let packet =
     [<<size:32-little, 0:32, 0:32, 2013:32-little, 0:32, 0>>, encoded]
     |> bit_string.concat
-  case socket
-  |> tcp.send(packet) {
+  case tcp.send(socket, packet) {
     tcp.Ok ->
-      case socket
-      |> tcp.receive() {
+      case tcp.receive(socket) {
         Ok(response) -> {
           let <<_:168, rest:bit_string>> = response
-          rest
           case decode(rest) {
             Ok(result) -> Ok(result)
             Error(Nil) -> Error(Nil)
@@ -149,9 +136,7 @@ fn parse_connection_string(uri: String) -> Result(ConnectionInfo, Nil) {
       case parsed.host {
         option.Some("") -> Error(Nil)
         option.Some(host) -> {
-          let port =
-            parsed.port
-            |> option.unwrap(27017)
+          let port = option.unwrap(parsed.port, 27017)
           case parsed.path {
             "" -> Error(Nil)
             "/" -> Error(Nil)
@@ -164,54 +149,58 @@ fn parse_connection_string(uri: String) -> Result(ConnectionInfo, Nil) {
                     ["", _] -> Error(Nil)
                     [_, ""] -> Error(Nil)
                     [username, password] ->
-                      case [username, password]
-                      |> list.map(uri.percent_decode) {
+                      case
+                        [username, password]
+                        |> list.map(uri.percent_decode)
+                      {
                         [Ok(username), Ok(password)] ->
                           case parsed.query {
                             option.Some(query) -> {
-                              try opts =
-                                query
-                                |> uri.parse_query
+                              try opts = uri.parse_query(query)
                               case list.key_find(opts, "authSource") {
                                 Ok(auth_source) ->
-                                  Ok(ConnectionInfo(
+                                  ConnectionInfo(
                                     host,
                                     port,
                                     db,
                                     auth: option.Some(#(username, password)),
                                     auth_source: option.Some(auth_source),
-                                  ))
+                                  )
+                                  |> Ok
                                 Error(Nil) ->
-                                  Ok(ConnectionInfo(
+                                  ConnectionInfo(
                                     host,
                                     port,
                                     db,
                                     auth: option.Some(#(username, password)),
                                     auth_source: option.None,
-                                  ))
+                                  )
+                                  |> Ok
                               }
                             }
                             option.None ->
-                              Ok(ConnectionInfo(
+                              ConnectionInfo(
                                 host,
                                 port,
                                 db,
                                 auth: option.Some(#(username, password)),
                                 auth_source: option.None,
-                              ))
+                              )
+                              |> Ok
                           }
                         _ -> Error(Nil)
                       }
                     _ -> Error(Nil)
                   }
                 option.None ->
-                  Ok(ConnectionInfo(
+                  ConnectionInfo(
                     host,
                     port,
                     db,
                     auth: option.None,
                     auth_source: option.None,
-                  ))
+                  )
+                  |> Ok
               }
             }
           }
