@@ -11,7 +11,7 @@ pub type InsertResult {
 
 pub type UpdateResult {
   UpdateResult(n: Int, modified: Int)
-  UpsertResult(n: Int, upserted: object_id.ObjectId)
+  UpsertResult(n: Int, upserted: types.Value)
 }
 
 pub fn insert_one(collection, doc) {
@@ -335,10 +335,7 @@ fn update(
               #(
                 "upserted",
                 types.Array([
-                  types.Document([
-                    #("index", _),
-                    #("_id", types.ObjectId(upserted)),
-                  ]),
+                  types.Document([#("index", _), #("_id", upserted)]),
                 ]),
               ),
               #("nModified", _),
