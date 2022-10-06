@@ -10,8 +10,8 @@ pub type InsertResult {
 }
 
 pub type UpdateResult {
-  UpdateResult(n: Int, modified: Int)
-  UpsertResult(n: Int, upserted: types.Value)
+  UpdateResult(matched: Int, modified: Int)
+  UpsertResult(matched: Int, upserted_id: types.Value)
 }
 
 pub fn insert_one(collection, doc) {
