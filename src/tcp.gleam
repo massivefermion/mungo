@@ -18,9 +18,7 @@ pub fn connect(host: String, port: Int) {
     host
     |> string.to_graphemes
     |> list.map(fn(char) {
-      let <<code>> =
-        char
-        |> bit_string.from_string
+      let <<code>> = bit_string.from_string(char)
       code
     }),
     port,

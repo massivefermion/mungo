@@ -13,13 +13,7 @@ pub fn first_payload(username: String) {
     crypto.strong_random_bytes(24)
     |> base.encode64(True)
 
-  [
-    "n=",
-    username
-    |> clean_username,
-    ",r=",
-    nonce,
-  ]
+  ["n=", clean_username(username), ",r=", nonce]
   |> string.concat
 }
 
@@ -48,9 +42,7 @@ pub fn parse_first_reply(reply: List(#(String, types.Value))) {
       #("payload", types.Binary(types.Generic(data))),
       #("ok", types.Double(1.0)),
     ] -> {
-      try data =
-        data
-        |> generic.to_string
+      try data = generic.to_string(data)
       try [#("r", rnonce), #("s", salt), #("i", i)] = parse_payload(data)
       case int.parse(i) {
         Ok(iterations) ->
@@ -79,16 +71,14 @@ pub fn second_message(
 
   let client_key =
     crypto.hmac(
-      "Client Key"
-      |> bit_string.from_string,
+      bit_string.from_string("Client Key"),
       crypto.Sha256,
       salted_password,
     )
 
   let server_key =
     crypto.hmac(
-      "Server Key"
-      |> bit_string.from_string,
+      bit_string.from_string("Server Key"),
       crypto.Sha256,
       salted_password,
     )
@@ -115,12 +105,7 @@ pub fn second_message(
     |> generic.from_string
 
   let server_signature =
-    crypto.hmac(
-      auth_message
-      |> generic.to_bit_string,
-      crypto.Sha256,
-      server_key,
-    )
+    crypto.hmac(generic.to_bit_string(auth_message), crypto.Sha256, server_key)
 
   #(
     types.Document([
@@ -145,9 +130,7 @@ pub fn parse_second_reply(
       #("payload", types.Binary(types.Generic(data))),
       #("ok", types.Double(1.0)),
     ] -> {
-      try data =
-        data
-        |> generic.to_string
+      try data = generic.to_string(data)
       try [#("v", data)] = parse_payload(data)
       try received_signature = base.decode64(data)
       case
