@@ -1,14 +1,15 @@
 import bson/types
 import gleam/list
+import gleam/queue
 import mongo/client
 import mongo/utils.{MongoError, default_error}
 
 pub opaque type Pipeline {
-  Pipeline(collection: client.Collection, stages: List(types.Value))
+  Pipeline(collection: client.Collection, stages: queue.Queue(types.Value))
 }
 
 pub fn aggregate(collection: client.Collection) -> Pipeline {
-  Pipeline(collection, stages: [])
+  Pipeline(collection, stages: queue.new())
 }
 
 pub fn stages(pipeline: Pipeline, docs: List(types.Value)) {
@@ -77,7 +78,12 @@ pub fn exec(pipeline: Pipeline) {
       types.Document([
         #("aggregate", types.Str(pipeline.collection.name)),
         #("cursor", types.Document([])),
-        #("pipeline", types.Array(pipeline.stages)),
+        #(
+          "pipeline",
+          pipeline.stages
+          |> queue.to_list
+          |> types.Array,
+        ),
       ]),
     )
   {
@@ -97,8 +103,6 @@ fn append_stage(pipeline: Pipeline, stage: types.Value) {
   Pipeline(
     collection: pipeline.collection,
     stages: pipeline.stages
-    |> list.reverse
-    |> list.prepend(stage)
-    |> list.reverse,
+    |> queue.push_back(stage),
   )
 }
