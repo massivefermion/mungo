@@ -20,17 +20,16 @@ gleam add gleam_mongo
 - [x] support aggregation
 - [x] support connection strings
 - [x] support authentication
-- [ ] support bulk operations
-- [ ] support other mongodb commands
 - [ ] support mongodb cursors
 - [ ] support connection pooling
+- [ ] support bulk operations
 - [ ] support transactions
+- [ ] support other mongodb commands
 - [ ] support tls
 - [ ] support clusters
+- [ ] support change streams
 
 ## Usage
-
-### Connection
 
 ```gleam
 import mongo
