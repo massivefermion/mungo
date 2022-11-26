@@ -1,5 +1,5 @@
 name = "gleam_mongo"
-version = "0.10.0"
+version = "0.11.0"
 
 description = "A mongodb driver for gleam"
 licences = ["Apache-2.0"]
@@ -11,9 +11,9 @@ repository = {type = "github", user = "massivefermion", repo = "gleam_mongo"}
 
 [dependencies]
 gleam_bitwise = "~> 1.2"
-gleam_bson = "~> 0.17"
+gleam_bson = "~> 0.18"
 gleam_crypto = "~> 0.3"
-gleam_stdlib = "~> 0.24"
+gleam_stdlib = "~> 0.25"
 
 [dev-dependencies]
 gleeunit = "~> 0.7"
