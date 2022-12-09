@@ -241,26 +241,22 @@ fn find(
         [] -> [#("find", types.Str(collection.name))]
         _ -> [#("find", types.Str(collection.name)), #("filter", filter)]
       }
-      let options =
+      let body =
         list.fold(
           options,
-          [],
+          body,
           fn(acc, opt) {
             case opt {
-              utils.Sort(types.Document(sort)) -> [
-                #("sort", types.Document(sort)),
-                ..acc
-              ]
-              utils.Projection(types.Document(projection)) -> [
-                #("projection", types.Document(projection)),
-                ..acc
-              ]
-              utils.Skip(skip) -> [#("skip", types.Integer(skip)), ..acc]
-              utils.Limit(limit) -> [#("limit", types.Integer(limit)), ..acc]
+              utils.Sort(types.Document(sort)) ->
+                list.key_set(acc, "sort", types.Document(sort))
+              utils.Projection(types.Document(projection)) ->
+                list.key_set(acc, "projection", types.Document(projection))
+              utils.Skip(skip) -> list.key_set(acc, "skip", types.Integer(skip))
+              utils.Limit(limit) ->
+                list.key_set(acc, "limit", types.Integer(limit))
             }
           },
         )
-      let body = list.append(body, options)
       case
         collection
         |> client.execute(types.Document(body))
@@ -299,21 +295,20 @@ fn update(
             #("u", change),
             #("multi", types.Boolean(multi)),
           ]
-          let options =
+          let update =
             list.fold(
               options,
-              [],
+              update,
               fn(acc, opt) {
                 case opt {
-                  utils.Upsert -> [#("upsert", types.Boolean(True)), ..acc]
-                  utils.ArrayFilters(filters) -> [
-                    #("arrayFilters", types.Array(filters)),
-                    ..acc
-                  ]
+                  utils.Upsert ->
+                    list.key_set(acc, "upsert", types.Boolean(True))
+                  utils.ArrayFilters(filters) ->
+                    list.key_set(acc, "arrayFilters", types.Array(filters))
                 }
               },
             )
-          let update = types.Document(list.append(update, options))
+            |> types.Document
           case
             collection
             |> client.execute(types.Document([

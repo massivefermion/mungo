@@ -106,7 +106,7 @@ fn send_cmd(
   cmd: types.Value,
 ) -> Result(List(#(String, types.Value)), Nil) {
   assert types.Document(cmd) = cmd
-  let cmd = list.append(cmd, [#("$db", types.Str(db))])
+  let cmd = list.key_set(cmd, "$db", types.Str(db))
   let encoded = encode(cmd)
   let size = bit_string.byte_size(encoded) + 21
 

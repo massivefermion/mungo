@@ -158,7 +158,7 @@ fn clean_username(username: String) {
 }
 
 pub fn hi(password, salt, iterations) {
-  // should cache with unique key constructed from params
+  // TODO: should cache with unique key constructed from params
   pbkdf2(crypto.Sha256, password, salt, iterations, 32)
 }
 
