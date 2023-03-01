@@ -1,3 +1,4 @@
+import gleam/result
 import gleam/int
 import bson/types
 import gleam/list
@@ -42,8 +43,10 @@ pub fn parse_first_reply(reply: List(#(String, types.Value))) {
       #("payload", types.Binary(types.Generic(data))),
       #("ok", types.Double(1.0)),
     ] -> {
-      try data = generic.to_string(data)
-      try [#("r", rnonce), #("s", salt), #("i", i)] = parse_payload(data)
+      use data <- result.then(generic.to_string(data))
+      use [#("r", rnonce), #("s", salt), #("i", i)] <- result.then(parse_payload(
+        data,
+      ))
       case int.parse(i) {
         Ok(iterations) ->
           case iterations >= 4096 {
@@ -65,7 +68,7 @@ pub fn second_message(
 ) {
   let #(rnonce, salt, iterations) = server_params
 
-  try salt = base.decode64(salt)
+  use salt <- result.then(base.decode64(salt))
 
   let salted_password = hi(password, salt, iterations)
 
@@ -130,9 +133,9 @@ pub fn parse_second_reply(
       #("payload", types.Binary(types.Generic(data))),
       #("ok", types.Double(1.0)),
     ] -> {
-      try data = generic.to_string(data)
-      try [#("v", data)] = parse_payload(data)
-      try received_signature = base.decode64(data)
+      use data <- result.then(generic.to_string(data))
+      use [#("v", data)] <- result.then(parse_payload(data))
+      use received_signature <- result.then(base.decode64(data))
       case
         bit_string.byte_size(server_signature) == bit_string.byte_size(
           received_signature,

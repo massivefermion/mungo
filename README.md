@@ -40,7 +40,7 @@ import gleam/result
 import mongo/aggregation.{add_fields, aggregate, exec, lookup}
 
 pub fn main() {
-  assert Ok(comix_db) =
+  let assert Ok(comix_db) =
     mongo.connect("mongodb://Sketch:RoadKill@localhost/comix_zone")
 
   let characters =

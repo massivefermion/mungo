@@ -208,7 +208,7 @@ pub fn insert_many(
         Ok([#("n", _), #("writeErrors", types.Array(errors)), #("ok", ok)]) ->
           case ok {
             types.Double(1.0) -> {
-              assert Ok(error) = list.first(errors)
+              let assert Ok(error) = list.first(errors)
               case error {
                 types.Document([
                   #("index", _),
@@ -348,7 +348,7 @@ fn update(
             ]) ->
               case ok {
                 types.Double(1.0) -> {
-                  assert Ok(error) = list.first(errors)
+                  let assert Ok(error) = list.first(errors)
                   case error {
                     types.Document([
                       #("index", _),
@@ -404,7 +404,7 @@ fn delete(collection: client.Collection, filter: types.Value, multi: Bool) {
         Ok([#("n", _), #("writeErrors", types.Array(errors)), #("ok", ok)]) ->
           case ok {
             types.Double(1.0) -> {
-              assert Ok(error) = list.first(errors)
+              let assert Ok(error) = list.first(errors)
               case error {
                 types.Document([
                   #("index", _),

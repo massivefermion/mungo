@@ -1,3 +1,4 @@
+import gleam/result
 import tcp
 import gleam/uri
 import gleam/list
@@ -27,18 +28,18 @@ pub type Collection {
 }
 
 pub fn connect(uri: String) -> Result(Database, Nil) {
-  try info = parse_connection_string(uri)
+  use info <- result.then(parse_connection_string(uri))
   case info {
     ConnectionInfo(host, port, db, auth, auth_source) -> {
-      try socket = tcp.connect(host, port)
+      use socket <- result.then(tcp.connect(host, port))
       case auth {
         option.None -> Ok(Database(socket, db))
         option.Some(#(username, password)) -> {
-          try _ = case auth_source {
+          use _ <- result.then(case auth_source {
             option.None -> authenticate(socket, username, password, db)
             option.Some(source) ->
               authenticate(socket, username, password, source)
-          }
+          })
           Ok(Database(socket, db))
         }
       }
@@ -79,20 +80,21 @@ fn authenticate(
 
   let first = scram.first_message(first_payload)
 
-  try reply = send_cmd(socket, auth_source, first)
+  use reply <- result.then(send_cmd(socket, auth_source, first))
 
-  try #(server_params, server_payload, cid) = scram.parse_first_reply(reply)
+  use #(server_params, server_payload, cid) <- result.then(scram.parse_first_reply(
+    reply,
+  ))
 
-  try #(second, server_signature) =
-    scram.second_message(
-      server_params,
-      first_payload,
-      server_payload,
-      cid,
-      password,
-    )
+  use #(second, server_signature) <- result.then(scram.second_message(
+    server_params,
+    first_payload,
+    server_payload,
+    cid,
+    password,
+  ))
 
-  try reply = send_cmd(socket, auth_source, second)
+  use reply <- result.then(send_cmd(socket, auth_source, second))
 
   case reply {
     [#("ok", types.Double(0.0)), ..] -> Error(Nil)
@@ -105,7 +107,7 @@ fn send_cmd(
   db: String,
   cmd: types.Value,
 ) -> Result(List(#(String, types.Value)), Nil) {
-  assert types.Document(cmd) = cmd
+  let assert types.Document(cmd) = cmd
   let cmd = list.key_set(cmd, "$db", types.Str(db))
   let encoded = encode(cmd)
   let size = bit_string.byte_size(encoded) + 21
@@ -130,19 +132,19 @@ fn send_cmd(
 }
 
 fn parse_connection_string(uri: String) -> Result(ConnectionInfo, Nil) {
-  try parsed = uri.parse(uri)
+  use parsed <- result.then(uri.parse(uri))
   case parsed.scheme {
     option.Some("mongodb") ->
       case parsed.host {
         option.Some("") -> Error(Nil)
         option.Some(host) -> {
-          let port = option.unwrap(parsed.port, 27017)
+          let port = option.unwrap(parsed.port, 27_017)
           case parsed.path {
             "" -> Error(Nil)
             "/" -> Error(Nil)
             path -> {
               let [_, db] = string.split(path, "/")
-              try db = uri.percent_decode(db)
+              use db <- result.then(uri.percent_decode(db))
               case parsed.userinfo {
                 option.Some(userinfo) ->
                   case string.split(userinfo, ":") {
@@ -156,7 +158,7 @@ fn parse_connection_string(uri: String) -> Result(ConnectionInfo, Nil) {
                         [Ok(username), Ok(password)] ->
                           case parsed.query {
                             option.Some(query) -> {
-                              try opts = uri.parse_query(query)
+                              use opts <- result.then(uri.parse_query(query))
                               case list.key_find(opts, "authSource") {
                                 Ok(auth_source) ->
                                   ConnectionInfo(
