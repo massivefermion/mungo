@@ -1,5 +1,6 @@
 name = "gleam_mongo"
-version = "0.14.0"
+target = "erlang"
+version = "0.15.0"
 
 description = "A mongodb driver for gleam"
 licences = ["Apache-2.0"]
@@ -9,11 +10,17 @@ links = [
 ]
 repository = {type = "github", user = "massivefermion", repo = "gleam_mongo"}
 
+internal_modules = [
+  "tcp",
+  "mongo/client",
+  "mongo/scram",
+]
+
 [dependencies]
 gleam_bitwise = "~> 1.2"
-gleam_bson = "~> 0.21"
+gleam_bson = "~> 0.22"
 gleam_crypto = "~> 0.3"
-gleam_stdlib = "~> 0.27"
+gleam_stdlib = "~> 0.28"
 
 [dev-dependencies]
 gleeunit = "~> 0.10"

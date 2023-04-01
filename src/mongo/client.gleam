@@ -1,12 +1,13 @@
-import gleam/result
-import tcp
 import gleam/uri
+import gleam/bool
 import gleam/list
-import bson/types
-import mongo/scram
 import gleam/string
 import gleam/option
+import gleam/result
 import gleam/bit_string
+import tcp
+import mongo/scram
+import bson/types
 import bson.{decode, encode}
 
 pub opaque type ConnectionInfo {
@@ -133,83 +134,76 @@ fn send_cmd(
 
 fn parse_connection_string(uri: String) -> Result(ConnectionInfo, Nil) {
   use parsed <- result.then(uri.parse(uri))
-  case parsed.scheme {
-    option.Some("mongodb") ->
-      case parsed.host {
-        option.Some("") -> Error(Nil)
-        option.Some(host) -> {
-          let port = option.unwrap(parsed.port, 27_017)
-          case parsed.path {
-            "" -> Error(Nil)
-            "/" -> Error(Nil)
-            path -> {
-              let [_, db] = string.split(path, "/")
-              use db <- result.then(uri.percent_decode(db))
-              case parsed.userinfo {
-                option.Some(userinfo) ->
-                  case string.split(userinfo, ":") {
-                    ["", _] -> Error(Nil)
-                    [_, ""] -> Error(Nil)
-                    [username, password] ->
-                      case
-                        [username, password]
-                        |> list.map(uri.percent_decode)
-                      {
-                        [Ok(username), Ok(password)] ->
-                          case parsed.query {
-                            option.Some(query) -> {
-                              use opts <- result.then(uri.parse_query(query))
-                              case list.key_find(opts, "authSource") {
-                                Ok(auth_source) ->
-                                  ConnectionInfo(
-                                    host,
-                                    port,
-                                    db,
-                                    auth: option.Some(#(username, password)),
-                                    auth_source: option.Some(auth_source),
-                                  )
-                                  |> Ok
-                                Error(Nil) ->
-                                  ConnectionInfo(
-                                    host,
-                                    port,
-                                    db,
-                                    auth: option.Some(#(username, password)),
-                                    auth_source: option.None,
-                                  )
-                                  |> Ok
-                              }
-                            }
-                            option.None ->
-                              ConnectionInfo(
-                                host,
-                                port,
-                                db,
-                                auth: option.Some(#(username, password)),
-                                auth_source: option.None,
-                              )
-                              |> Ok
-                          }
-                        _ -> Error(Nil)
-                      }
-                    _ -> Error(Nil)
-                  }
-                option.None ->
+
+  use <- bool.guard(parsed.scheme != option.Some("mongodb"), Error(Nil))
+  use <- bool.guard(
+    option.is_none(parsed.host) || parsed.host == option.Some(""),
+    Error(Nil),
+  )
+  use <- bool.guard(list.contains(["", "/"], parsed.path), Error(Nil))
+
+  let assert option.Some(host) = parsed.host
+  let port = option.unwrap(parsed.port, 27_017)
+  let path = parsed.path
+  let [_, db] = string.split(path, "/")
+  use db <- result.then(uri.percent_decode(db))
+  use <- bool.guard(
+    option.is_none(parsed.userinfo),
+    Ok(ConnectionInfo(
+      host,
+      port,
+      db,
+      auth: option.None,
+      auth_source: option.None,
+    )),
+  )
+
+  let assert option.Some(userinfo) = parsed.userinfo
+  case string.split(userinfo, ":") {
+    ["", _] -> Error(Nil)
+    [_, ""] -> Error(Nil)
+    [username, password] ->
+      case
+        [username, password]
+        |> list.map(uri.percent_decode)
+      {
+        [Ok(username), Ok(password)] ->
+          case parsed.query {
+            option.Some(query) -> {
+              use opts <- result.then(uri.parse_query(query))
+              case list.key_find(opts, "authSource") {
+                Ok(auth_source) ->
                   ConnectionInfo(
                     host,
                     port,
                     db,
-                    auth: option.None,
+                    auth: option.Some(#(username, password)),
+                    auth_source: option.Some(auth_source),
+                  )
+                  |> Ok
+                Error(Nil) ->
+                  ConnectionInfo(
+                    host,
+                    port,
+                    db,
+                    auth: option.Some(#(username, password)),
                     auth_source: option.None,
                   )
                   |> Ok
               }
             }
+            option.None ->
+              ConnectionInfo(
+                host,
+                port,
+                db,
+                auth: option.Some(#(username, password)),
+                auth_source: option.None,
+              )
+              |> Ok
           }
-        }
-        option.None -> Error(Nil)
+        _ -> Error(Nil)
       }
-    option.Some(_) -> Error(Nil)
-    option.None -> Error(Nil)
+    _ -> Error(Nil)
   }
 }

@@ -1,8 +1,8 @@
-import bson/types
 import gleam/list
 import gleam/queue
 import mongo/client
 import mongo/utils.{MongoError, default_error}
+import bson/types
 
 pub opaque type Pipeline {
   Pipeline(collection: client.Collection, stages: queue.Queue(types.Value))

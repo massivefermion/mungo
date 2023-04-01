@@ -127,6 +127,7 @@ pub fn parse_second_reply(
 ) {
   case reply {
     [#("ok", types.Double(0.0)), ..] -> Error(Nil)
+
     [
       #("conversationId", _),
       #("done", types.Boolean(True)),
