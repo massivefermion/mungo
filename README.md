@@ -32,11 +32,11 @@ gleam add gleam_mongo
 ## Usage
 
 ```gleam
-import mongo
-import bson/types
-import comics/draw
-import mongo/utils
 import gleam/result
+import comics/draw
+import bson/types
+import mongo
+import mongo/utils
 import mongo/aggregation.{add_fields, aggregate, exec, lookup}
 
 pub fn main() {
