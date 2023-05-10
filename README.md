@@ -34,7 +34,7 @@ gleam add gleam_mongo
 ```gleam
 import gleam/result
 import comics/draw
-import bson/types
+import bson/value
 import mongo
 import mongo/utils
 import mongo/aggregation.{add_fields, aggregate, exec, lookup}
@@ -48,15 +48,15 @@ pub fn main() {
     |> mongo.collection("characters")
 
   characters
-  |> mongo.insert_one(types.Document([
-    #("name", types.Str("Alissa")),
-    #("race", types.Str("human")),
+  |> mongo.insert_one(value.Document([
+    #("name", value.Str("Alissa")),
+    #("race", value.Str("human")),
   ]))
 
   characters
   |> mongo.update_one(
-    types.Document([#("name", types.Str("Mortus"))]),
-    types.Document([#("$set", types.Document([#("race", types.Str("mutant"))]))]),
+    value.Document([#("name", value.Str("Mortus"))]),
+    value.Document([#("$set", value.Document([#("race", value.Str("mutant"))]))]),
     [utils.Upsert],
   )
 
@@ -68,11 +68,11 @@ pub fn main() {
     foreign_field: "subject",
     alias: "style",
   )
-  |> add_fields(types.Document([
+  |> add_fields(value.Document([
     #(
       "style",
-      types.Document([
-        #("$arrayElemAt", types.Array([types.Str("$style"), types.Integer(0)])),
+      value.Document([
+        #("$arrayElemAt", value.Array([value.Str("$style"), value.Integer(0)])),
       ]),
     ),
   ]))

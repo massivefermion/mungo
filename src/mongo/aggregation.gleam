@@ -2,17 +2,17 @@ import gleam/list
 import gleam/queue
 import mongo/client
 import mongo/utils.{MongoError, default_error}
-import bson/types
+import bson/value
 
 pub opaque type Pipeline {
-  Pipeline(collection: client.Collection, stages: queue.Queue(types.Value))
+  Pipeline(collection: client.Collection, stages: queue.Queue(value.Value))
 }
 
 pub fn aggregate(collection: client.Collection) -> Pipeline {
   Pipeline(collection, stages: queue.new())
 }
 
-pub fn stages(pipeline: Pipeline, docs: List(types.Value)) {
+pub fn stages(pipeline: Pipeline, docs: List(value.Value)) {
   list.fold(
     docs,
     pipeline,
@@ -20,8 +20,8 @@ pub fn stages(pipeline: Pipeline, docs: List(types.Value)) {
   )
 }
 
-pub fn match(pipeline: Pipeline, doc: types.Value) {
-  append_stage(pipeline, types.Document([#("$match", doc)]))
+pub fn match(pipeline: Pipeline, doc: value.Value) {
+  append_stage(pipeline, value.Document([#("$match", doc)]))
 }
 
 pub fn lookup(
@@ -33,73 +33,73 @@ pub fn lookup(
 ) {
   append_stage(
     pipeline,
-    types.Document([
+    value.Document([
       #(
         "$lookup",
-        types.Document([
-          #("from", types.Str(from)),
-          #("localField", types.Str(local_field)),
-          #("foreignField", types.Str(foreign_field)),
-          #("as", types.Str(alias)),
+        value.Document([
+          #("from", value.Str(from)),
+          #("localField", value.Str(local_field)),
+          #("foreignField", value.Str(foreign_field)),
+          #("as", value.Str(alias)),
         ]),
       ),
     ]),
   )
 }
 
-pub fn project(pipeline: Pipeline, doc: types.Value) {
-  append_stage(pipeline, types.Document([#("$project", doc)]))
+pub fn project(pipeline: Pipeline, doc: value.Value) {
+  append_stage(pipeline, value.Document([#("$project", doc)]))
 }
 
-pub fn add_fields(pipeline: Pipeline, doc: types.Value) {
-  append_stage(pipeline, types.Document([#("$addFields", doc)]))
+pub fn add_fields(pipeline: Pipeline, doc: value.Value) {
+  append_stage(pipeline, value.Document([#("$addFields", doc)]))
 }
 
-pub fn sort(pipeline: Pipeline, doc: types.Value) {
-  append_stage(pipeline, types.Document([#("$sort", doc)]))
+pub fn sort(pipeline: Pipeline, doc: value.Value) {
+  append_stage(pipeline, value.Document([#("$sort", doc)]))
 }
 
-pub fn group(pipeline: Pipeline, doc: types.Value) {
-  append_stage(pipeline, types.Document([#("$group", doc)]))
+pub fn group(pipeline: Pipeline, doc: value.Value) {
+  append_stage(pipeline, value.Document([#("$group", doc)]))
 }
 
 pub fn skip(pipeline: Pipeline, count: Int) {
-  append_stage(pipeline, types.Document([#("$skip", types.Integer(count))]))
+  append_stage(pipeline, value.Document([#("$skip", value.Integer(count))]))
 }
 
 pub fn limit(pipeline: Pipeline, count: Int) {
-  append_stage(pipeline, types.Document([#("$limit", types.Integer(count))]))
+  append_stage(pipeline, value.Document([#("$limit", value.Integer(count))]))
 }
 
 pub fn exec(pipeline: Pipeline) {
   case
     client.execute(
       pipeline.collection,
-      types.Document([
-        #("aggregate", types.Str(pipeline.collection.name)),
-        #("cursor", types.Document([])),
+      value.Document([
+        #("aggregate", value.Str(pipeline.collection.name)),
+        #("cursor", value.Document([])),
         #(
           "pipeline",
           pipeline.stages
           |> queue.to_list
-          |> types.Array,
+          |> value.Array,
         ),
       ]),
     )
   {
     Ok(result) -> {
-      let [#("cursor", types.Document(result)), #("ok", ok)] = result
-      let [#("firstBatch", types.Array(docs)), #("id", _), #("ns", _)] = result
+      let [#("cursor", value.Document(result)), #("ok", ok)] = result
+      let [#("firstBatch", value.Array(docs)), #("id", _), #("ns", _)] = result
       case ok {
-        types.Double(1.0) -> Ok(docs)
+        value.Double(1.0) -> Ok(docs)
         _ -> Error(default_error)
       }
     }
-    Error(#(code, msg)) -> Error(MongoError(code, msg, source: types.Null))
+    Error(#(code, msg)) -> Error(MongoError(code, msg, source: value.Null))
   }
 }
 
-fn append_stage(pipeline: Pipeline, stage: types.Value) {
+fn append_stage(pipeline: Pipeline, stage: value.Value) {
   Pipeline(
     collection: pipeline.collection,
     stages: pipeline.stages

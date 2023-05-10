@@ -7,7 +7,7 @@ import gleam/result
 import gleam/bit_string
 import tcp
 import mongo/scram
-import bson/types
+import bson/value
 import bson.{decode, encode}
 
 pub opaque type ConnectionInfo {
@@ -54,15 +54,15 @@ pub fn collection(db: Database, name: String) -> Collection {
 
 pub fn execute(
   collection: Collection,
-  cmd: types.Value,
-) -> Result(List(#(String, types.Value)), #(Int, String)) {
+  cmd: value.Value,
+) -> Result(List(#(String, value.Value)), #(Int, String)) {
   case collection.db {
     Database(socket, name) ->
       case send_cmd(socket, name, cmd) {
         Ok([
-          #("ok", types.Double(0.0)),
-          #("errmsg", types.Str(msg)),
-          #("code", types.Integer(code)),
+          #("ok", value.Double(0.0)),
+          #("errmsg", value.Str(msg)),
+          #("code", value.Integer(code)),
           #("codeName", _),
         ]) -> Error(#(code, msg))
         Ok(result) -> Ok(result)
@@ -98,7 +98,7 @@ fn authenticate(
   use reply <- result.then(send_cmd(socket, auth_source, second))
 
   case reply {
-    [#("ok", types.Double(0.0)), ..] -> Error(Nil)
+    [#("ok", value.Double(0.0)), ..] -> Error(Nil)
     reply -> scram.parse_second_reply(reply, server_signature)
   }
 }
@@ -106,10 +106,10 @@ fn authenticate(
 fn send_cmd(
   socket: tcp.Socket,
   db: String,
-  cmd: types.Value,
-) -> Result(List(#(String, types.Value)), Nil) {
-  let assert types.Document(cmd) = cmd
-  let cmd = list.key_set(cmd, "$db", types.Str(db))
+  cmd: value.Value,
+) -> Result(List(#(String, value.Value)), Nil) {
+  let assert value.Document(cmd) = cmd
+  let cmd = list.key_set(cmd, "$db", value.Str(db))
   let encoded = encode(cmd)
   let size = bit_string.byte_size(encoded) + 21
 

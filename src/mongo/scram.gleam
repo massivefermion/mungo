@@ -1,6 +1,6 @@
 import gleam/result
 import gleam/int
-import bson/types
+import bson/value
 import gleam/list
 import gleam/base
 import bson/generic
@@ -24,24 +24,24 @@ pub fn first_message(payload) {
     |> string.concat
     |> generic.from_string
 
-  types.Document([
-    #("saslStart", types.Boolean(True)),
-    #("mechanism", types.Str("SCRAM-SHA-256")),
-    #("payload", types.Binary(types.Generic(payload))),
-    #("autoAuthorize", types.Boolean(True)),
-    #("options", types.Document([#("skipEmptyExchange", types.Boolean(True))])),
+  value.Document([
+    #("saslStart", value.Boolean(True)),
+    #("mechanism", value.Str("SCRAM-SHA-256")),
+    #("payload", value.Binary(value.Generic(payload))),
+    #("autoAuthorize", value.Boolean(True)),
+    #("options", value.Document([#("skipEmptyExchange", value.Boolean(True))])),
   ])
 }
 
-pub fn parse_first_reply(reply: List(#(String, types.Value))) {
+pub fn parse_first_reply(reply: List(#(String, value.Value))) {
   case reply {
-    [#("ok", types.Double(0.0)), ..] -> Error(Nil)
+    [#("ok", value.Double(0.0)), ..] -> Error(Nil)
 
     [
-      #("conversationId", types.Integer(cid)),
-      #("done", types.Boolean(False)),
-      #("payload", types.Binary(types.Generic(data))),
-      #("ok", types.Double(1.0)),
+      #("conversationId", value.Integer(cid)),
+      #("done", value.Boolean(False)),
+      #("payload", value.Binary(value.Generic(data))),
+      #("ok", value.Double(1.0)),
     ] -> {
       use data <- result.then(generic.to_string(data))
       use [#("r", rnonce), #("s", salt), #("i", i)] <- result.then(parse_payload(
@@ -111,10 +111,10 @@ pub fn second_message(
     crypto.hmac(generic.to_bit_string(auth_message), crypto.Sha256, server_key)
 
   #(
-    types.Document([
-      #("saslContinue", types.Boolean(True)),
-      #("conversationId", types.Integer(cid)),
-      #("payload", types.Binary(types.Generic(second_payload))),
+    value.Document([
+      #("saslContinue", value.Boolean(True)),
+      #("conversationId", value.Integer(cid)),
+      #("payload", value.Binary(value.Generic(second_payload))),
     ]),
     server_signature,
   )
@@ -122,17 +122,17 @@ pub fn second_message(
 }
 
 pub fn parse_second_reply(
-  reply: List(#(String, types.Value)),
+  reply: List(#(String, value.Value)),
   server_signature: BitString,
 ) {
   case reply {
-    [#("ok", types.Double(0.0)), ..] -> Error(Nil)
+    [#("ok", value.Double(0.0)), ..] -> Error(Nil)
 
     [
       #("conversationId", _),
-      #("done", types.Boolean(True)),
-      #("payload", types.Binary(types.Generic(data))),
-      #("ok", types.Double(1.0)),
+      #("done", value.Boolean(True)),
+      #("payload", value.Binary(value.Generic(data))),
+      #("ok", value.Double(1.0)),
     ] -> {
       use data <- result.then(generic.to_string(data))
       use [#("v", data)] <- result.then(parse_payload(data))

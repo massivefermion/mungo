@@ -2,16 +2,16 @@ import gleam/list
 import gleam/pair
 import mongo/utils
 import mongo/client
-import bson/types
+import bson/value
 import bson/object_id
 
 pub type InsertResult {
-  InsertResult(inserted: Int, inserted_ids: List(types.Value))
+  InsertResult(inserted: Int, inserted_ids: List(value.Value))
 }
 
 pub type UpdateResult {
   UpdateResult(matched: Int, modified: Int)
-  UpsertResult(matched: Int, upserted_id: types.Value)
+  UpsertResult(matched: Int, upserted_id: value.Value)
 }
 
 pub fn insert_one(collection, doc) {
@@ -29,8 +29,8 @@ pub fn find_by_id(collection, id) {
     Ok(id) ->
       collection
       |> find_one(
-        types.Document([#("_id", types.ObjectId(id))]),
-        types.Document([]),
+        value.Document([#("_id", value.ObjectId(id))]),
+        value.Document([]),
       )
     Error(Nil) -> Error(utils.default_error)
   }
@@ -48,7 +48,7 @@ pub fn find_one(collection, filter, projection) {
     collection
     |> find_many(filter, options)
   {
-    Ok([]) -> Ok(types.Null)
+    Ok([]) -> Ok(value.Null)
     Ok([doc]) -> Ok(doc)
     Error(error) -> Error(error)
   }
@@ -56,9 +56,9 @@ pub fn find_one(collection, filter, projection) {
 
 pub fn find_many(
   collection: client.Collection,
-  filter: types.Value,
+  filter: value.Value,
   options: List(utils.FindOption),
-) -> Result(List(types.Value), utils.MongoError) {
+) -> Result(List(value.Value), utils.MongoError) {
   collection
   |> find(filter, options)
 }
@@ -66,15 +66,15 @@ pub fn find_many(
 pub fn find_all(
   collection: client.Collection,
   options: List(utils.FindOption),
-) -> Result(List(types.Value), utils.MongoError) {
+) -> Result(List(value.Value), utils.MongoError) {
   collection
-  |> find(types.Document([]), options)
+  |> find(value.Document([]), options)
 }
 
 pub fn update_one(
   collection: client.Collection,
-  filter: types.Value,
-  change: types.Value,
+  filter: value.Value,
+  change: value.Value,
   options: List(utils.UpdateOption),
 ) {
   collection
@@ -83,20 +83,20 @@ pub fn update_one(
 
 pub fn update_many(
   collection: client.Collection,
-  filter: types.Value,
-  change: types.Value,
+  filter: value.Value,
+  change: value.Value,
   options: List(utils.UpdateOption),
 ) {
   collection
   |> update(filter, change, options, True)
 }
 
-pub fn delete_one(collection: client.Collection, filter: types.Value) {
+pub fn delete_one(collection: client.Collection, filter: value.Value) {
   collection
   |> delete(filter, False)
 }
 
-pub fn delete_many(collection: client.Collection, filter: types.Value) {
+pub fn delete_many(collection: client.Collection, filter: value.Value) {
   collection
   |> delete(filter, True)
 }
@@ -104,41 +104,41 @@ pub fn delete_many(collection: client.Collection, filter: types.Value) {
 pub fn count_all(collection: client.Collection) {
   case
     collection
-    |> client.execute(types.Document([#("count", types.Str(collection.name))]))
+    |> client.execute(value.Document([#("count", value.Str(collection.name))]))
   {
-    Ok([#("n", types.Integer(n)), #("ok", ok)]) ->
+    Ok([#("n", value.Integer(n)), #("ok", ok)]) ->
       case ok {
-        types.Double(1.0) -> Ok(n)
+        value.Double(1.0) -> Ok(n)
         _ -> Error(utils.default_error)
       }
     Error(#(code, msg)) ->
-      Error(utils.MongoError(code, msg, source: types.Null))
+      Error(utils.MongoError(code, msg, source: value.Null))
   }
 }
 
-pub fn count(collection: client.Collection, filter: types.Value) {
+pub fn count(collection: client.Collection, filter: value.Value) {
   use _ <- unwrap_doc(filter)
 
   case
     collection
-    |> client.execute(types.Document([
-      #("count", types.Str(collection.name)),
+    |> client.execute(value.Document([
+      #("count", value.Str(collection.name)),
       #("query", filter),
     ]))
   {
-    Ok([#("n", types.Integer(n)), #("ok", ok)]) ->
+    Ok([#("n", value.Integer(n)), #("ok", ok)]) ->
       case ok {
-        types.Double(1.0) -> Ok(n)
+        value.Double(1.0) -> Ok(n)
         _ -> Error(utils.default_error)
       }
     Error(#(code, msg)) ->
-      Error(utils.MongoError(code, msg, source: types.Null))
+      Error(utils.MongoError(code, msg, source: value.Null))
   }
 }
 
 pub fn insert_many(
   collection: client.Collection,
-  docs: List(types.Value),
+  docs: List(value.Value),
 ) -> Result(InsertResult, utils.MongoError) {
   use _ <- unwrap_all_docs(docs)
 
@@ -147,13 +147,13 @@ pub fn insert_many(
       docs,
       fn(d) {
         case d {
-          types.Document(fields) ->
+          value.Document(fields) ->
             case list.find(fields, fn(kv) { pair.first(kv) == "_id" }) {
               Ok(_) -> d
               Error(Nil) -> {
                 let id = object_id.new()
-                let fields = list.prepend(fields, #("_id", types.ObjectId(id)))
-                types.Document(fields)
+                let fields = list.prepend(fields, #("_id", value.ObjectId(id)))
+                value.Document(fields)
               }
             }
           _ -> d
@@ -166,40 +166,40 @@ pub fn insert_many(
       docs,
       fn(d) {
         case d {
-          types.Document(fields) ->
+          value.Document(fields) ->
             case list.find(fields, fn(kv) { pair.first(kv) == "_id" }) {
               Ok(#(_, id)) -> id
-              _ -> types.Str("")
+              _ -> value.Str("")
             }
-          _ -> types.Str("")
+          _ -> value.Str("")
         }
       },
     )
 
   case
     collection
-    |> client.execute(types.Document([
-      #("insert", types.Str(collection.name)),
-      #("documents", types.Array(docs)),
+    |> client.execute(value.Document([
+      #("insert", value.Str(collection.name)),
+      #("documents", value.Array(docs)),
     ]))
   {
-    Ok([#("n", types.Integer(n)), #("ok", ok)]) ->
+    Ok([#("n", value.Integer(n)), #("ok", ok)]) ->
       case ok {
-        types.Double(1.0) -> Ok(InsertResult(n, inserted_ids))
+        value.Double(1.0) -> Ok(InsertResult(n, inserted_ids))
         _ -> Error(utils.default_error)
       }
 
-    Ok([#("n", _), #("writeErrors", types.Array(errors)), #("ok", ok)]) ->
+    Ok([#("n", _), #("writeErrors", value.Array(errors)), #("ok", ok)]) ->
       case ok {
-        types.Double(1.0) -> {
+        value.Double(1.0) -> {
           let assert Ok(error) = list.first(errors)
           case error {
-            types.Document([
+            value.Document([
               #("index", _),
-              #("code", types.Integer(code)),
+              #("code", value.Integer(code)),
               #("keyPattern", _),
               #("keyValue", source),
-              #("errmsg", types.Str(msg)),
+              #("errmsg", value.Str(msg)),
             ]) -> Error(utils.MongoError(code, msg, source))
             _ -> Error(utils.default_error)
           }
@@ -208,20 +208,20 @@ pub fn insert_many(
         _ -> Error(utils.default_error)
       }
     Error(#(code, msg)) ->
-      Error(utils.MongoError(code, msg, source: types.Null))
+      Error(utils.MongoError(code, msg, source: value.Null))
   }
 }
 
 fn find(
   collection: client.Collection,
-  filter: types.Value,
+  filter: value.Value,
   options: List(utils.FindOption),
-) -> Result(List(types.Value), utils.MongoError) {
+) -> Result(List(value.Value), utils.MongoError) {
   use doc <- unwrap_doc(filter)
 
   let body = case doc {
-    [] -> [#("find", types.Str(collection.name))]
-    _ -> [#("find", types.Str(collection.name)), #("filter", filter)]
+    [] -> [#("find", value.Str(collection.name))]
+    _ -> [#("find", value.Str(collection.name)), #("filter", filter)]
   }
   let body =
     list.fold(
@@ -229,36 +229,36 @@ fn find(
       body,
       fn(acc, opt) {
         case opt {
-          utils.Sort(types.Document(sort)) ->
-            list.key_set(acc, "sort", types.Document(sort))
-          utils.Projection(types.Document(projection)) ->
-            list.key_set(acc, "projection", types.Document(projection))
-          utils.Skip(skip) -> list.key_set(acc, "skip", types.Integer(skip))
-          utils.Limit(limit) -> list.key_set(acc, "limit", types.Integer(limit))
+          utils.Sort(value.Document(sort)) ->
+            list.key_set(acc, "sort", value.Document(sort))
+          utils.Projection(value.Document(projection)) ->
+            list.key_set(acc, "projection", value.Document(projection))
+          utils.Skip(skip) -> list.key_set(acc, "skip", value.Integer(skip))
+          utils.Limit(limit) -> list.key_set(acc, "limit", value.Integer(limit))
         }
       },
     )
   case
     collection
-    |> client.execute(types.Document(body))
+    |> client.execute(value.Document(body))
   {
     Ok(result) -> {
-      let [#("cursor", types.Document(result)), #("ok", ok)] = result
-      let assert Ok(types.Array(docs)) = list.key_find(result, "firstBatch")
+      let [#("cursor", value.Document(result)), #("ok", ok)] = result
+      let assert Ok(value.Array(docs)) = list.key_find(result, "firstBatch")
       case ok {
-        types.Double(1.0) -> Ok(docs)
+        value.Double(1.0) -> Ok(docs)
         _ -> Error(utils.default_error)
       }
     }
     Error(#(code, msg)) ->
-      Error(utils.MongoError(code, msg, source: types.Null))
+      Error(utils.MongoError(code, msg, source: value.Null))
   }
 }
 
 fn update(
   collection: client.Collection,
-  filter: types.Value,
-  change: types.Value,
+  filter: value.Value,
+  change: value.Value,
   options: List(utils.UpdateOption),
   multi: Bool,
 ) {
@@ -268,7 +268,7 @@ fn update(
   let update = [
     #("q", filter),
     #("u", change),
-    #("multi", types.Boolean(multi)),
+    #("multi", value.Boolean(multi)),
   ]
   let update =
     list.fold(
@@ -276,58 +276,58 @@ fn update(
       update,
       fn(acc, opt) {
         case opt {
-          utils.Upsert -> list.key_set(acc, "upsert", types.Boolean(True))
+          utils.Upsert -> list.key_set(acc, "upsert", value.Boolean(True))
           utils.ArrayFilters(filters) ->
-            list.key_set(acc, "arrayFilters", types.Array(filters))
+            list.key_set(acc, "arrayFilters", value.Array(filters))
         }
       },
     )
-    |> types.Document
+    |> value.Document
   case
     collection
-    |> client.execute(types.Document([
-      #("update", types.Str(collection.name)),
-      #("updates", types.Array([update])),
+    |> client.execute(value.Document([
+      #("update", value.Str(collection.name)),
+      #("updates", value.Array([update])),
     ]))
   {
     Ok([
-      #("n", types.Integer(n)),
-      #("nModified", types.Integer(modified)),
+      #("n", value.Integer(n)),
+      #("nModified", value.Integer(modified)),
       #("ok", ok),
     ]) ->
       case ok {
-        types.Double(1.0) -> Ok(UpdateResult(n, modified))
+        value.Double(1.0) -> Ok(UpdateResult(n, modified))
         _ -> Error(utils.default_error)
       }
     Ok([
-      #("n", types.Integer(n)),
+      #("n", value.Integer(n)),
       #(
         "upserted",
-        types.Array([types.Document([#("index", _), #("_id", upserted)])]),
+        value.Array([value.Document([#("index", _), #("_id", upserted)])]),
       ),
       #("nModified", _),
       #("ok", ok),
     ]) ->
       case ok {
-        types.Double(1.0) -> Ok(UpsertResult(n, upserted))
+        value.Double(1.0) -> Ok(UpsertResult(n, upserted))
         _ -> Error(utils.default_error)
       }
     Ok([
       #("n", _),
-      #("writeErrors", types.Array(errors)),
+      #("writeErrors", value.Array(errors)),
       #("nModified", _),
       #("ok", ok),
     ]) ->
       case ok {
-        types.Double(1.0) -> {
+        value.Double(1.0) -> {
           let assert Ok(error) = list.first(errors)
           case error {
-            types.Document([
+            value.Document([
               #("index", _),
-              #("code", types.Integer(code)),
+              #("code", value.Integer(code)),
               #("keyPattern", _),
               #("keyValue", source),
-              #("errmsg", types.Str(msg)),
+              #("errmsg", value.Str(msg)),
             ]) -> Error(utils.MongoError(code, msg, source))
             _ -> Error(utils.default_error)
           }
@@ -335,25 +335,25 @@ fn update(
         _ -> Error(utils.default_error)
       }
     Error(#(code, msg)) ->
-      Error(utils.MongoError(code, msg, source: types.Null))
+      Error(utils.MongoError(code, msg, source: value.Null))
   }
 }
 
-fn delete(collection: client.Collection, filter: types.Value, multi: Bool) {
+fn delete(collection: client.Collection, filter: value.Value, multi: Bool) {
   use _ <- unwrap_doc(filter)
 
   case
     collection
-    |> client.execute(types.Document([
-      #("delete", types.Str(collection.name)),
+    |> client.execute(value.Document([
+      #("delete", value.Str(collection.name)),
       #(
         "deletes",
-        types.Array([
-          types.Document([
+        value.Array([
+          value.Document([
             #("q", filter),
             #(
               "limit",
-              types.Integer(case multi {
+              value.Integer(case multi {
                 True -> 0
                 False -> 1
               }),
@@ -363,22 +363,22 @@ fn delete(collection: client.Collection, filter: types.Value, multi: Bool) {
       ),
     ]))
   {
-    Ok([#("n", types.Integer(n)), #("ok", ok)]) ->
+    Ok([#("n", value.Integer(n)), #("ok", ok)]) ->
       case ok {
-        types.Double(1.0) -> Ok(n)
+        value.Double(1.0) -> Ok(n)
         _ -> Error(utils.default_error)
       }
-    Ok([#("n", _), #("writeErrors", types.Array(errors)), #("ok", ok)]) ->
+    Ok([#("n", _), #("writeErrors", value.Array(errors)), #("ok", ok)]) ->
       case ok {
-        types.Double(1.0) -> {
+        value.Double(1.0) -> {
           let assert Ok(error) = list.first(errors)
           case error {
-            types.Document([
+            value.Document([
               #("index", _),
-              #("code", types.Integer(code)),
+              #("code", value.Integer(code)),
               #("keyPattern", _),
               #("keyValue", source),
-              #("errmsg", types.Str(msg)),
+              #("errmsg", value.Str(msg)),
             ]) -> Error(utils.MongoError(code, msg, source))
             _ -> Error(utils.default_error)
           }
@@ -386,18 +386,18 @@ fn delete(collection: client.Collection, filter: types.Value, multi: Bool) {
         _ -> Error(utils.default_error)
       }
     Error(#(code, msg)) ->
-      Error(utils.MongoError(code, msg, source: types.Null))
+      Error(utils.MongoError(code, msg, source: value.Null))
   }
 }
 
-fn unwrap_doc(candidate: types.Value, rest) {
+fn unwrap_doc(candidate: value.Value, rest) {
   case candidate {
-    types.Document(doc) -> rest(doc)
+    value.Document(doc) -> rest(doc)
     _ -> Error(utils.default_error)
   }
 }
 
-fn unwrap_all_docs(candidates: List(types.Value), rest) {
+fn unwrap_all_docs(candidates: List(value.Value), rest) {
   case
     list.try_fold(
       candidates,
