@@ -166,14 +166,8 @@ pub fn hi(password, salt, iterations) {
   pbkdf2(crypto.Sha256, password, salt, iterations, 32)
 }
 
-external fn pbkdf2(
-  crypto.HashAlgorithm,
-  String,
-  BitString,
-  Int,
-  Int,
-) -> BitString =
-  "crypto" "pbkdf2_hmac"
+@external(erlang, "crypto", "pbkdf2_hmac")
+fn pbkdf2(alg: crypto.HashAlgorithm, password: String, salt: BitString, iterations: Int, key_len: Int) -> BitString
 
 fn xor(a: BitString, b: BitString, storage: BitString) -> BitString {
   let <<fa, ra:bit_string>> = a

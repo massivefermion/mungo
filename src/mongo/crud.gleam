@@ -1,4 +1,5 @@
 import gleam/list
+import gleam/bool
 import gleam/pair
 import mongo/utils
 import mongo/client
@@ -37,16 +38,12 @@ pub fn find_by_id(collection, id) {
 }
 
 pub fn find_one(collection, filter, projection) {
-  use _ <- unwrap_doc(filter)
-  use doc <- unwrap_doc(projection)
+  use <- bool.guard(!validate_doc(filter), Error(utils.default_error))
+  use <- bool.guard(!validate_doc(projection), Error(utils.default_error))
 
-  let options = case doc {
-    [] -> [utils.Limit(1)]
-    _ -> [utils.Limit(1), utils.Projection(projection)]
-  }
   case
     collection
-    |> find_many(filter, options)
+    |> find_many(filter, [utils.Limit(1), utils.Projection(projection)])
   {
     Ok([]) -> Ok(value.Null)
     Ok([doc]) -> Ok(doc)
@@ -117,7 +114,7 @@ pub fn count_all(collection: client.Collection) {
 }
 
 pub fn count(collection: client.Collection, filter: value.Value) {
-  use _ <- unwrap_doc(filter)
+  use <- bool.guard(!validate_doc(filter), Error(utils.default_error))
 
   case
     collection
@@ -140,7 +137,7 @@ pub fn insert_many(
   collection: client.Collection,
   docs: List(value.Value),
 ) -> Result(InsertResult, utils.MongoError) {
-  use _ <- unwrap_all_docs(docs)
+  use <- bool.guard(!validate_all_docs(docs), Error(utils.default_error))
 
   let docs =
     list.map(
@@ -217,16 +214,12 @@ fn find(
   filter: value.Value,
   options: List(utils.FindOption),
 ) -> Result(List(value.Value), utils.MongoError) {
-  use doc <- unwrap_doc(filter)
+  use <- bool.guard(!validate_doc(filter), Error(utils.default_error))
 
-  let body = case doc {
-    [] -> [#("find", value.Str(collection.name))]
-    _ -> [#("find", value.Str(collection.name)), #("filter", filter)]
-  }
   let body =
     list.fold(
       options,
-      body,
+      [#("find", value.Str(collection.name)), #("filter", filter)],
       fn(acc, opt) {
         case opt {
           utils.Sort(value.Document(sort)) ->
@@ -262,8 +255,8 @@ fn update(
   options: List(utils.UpdateOption),
   multi: Bool,
 ) {
-  use _ <- unwrap_doc(filter)
-  use _ <- unwrap_doc(change)
+  use <- bool.guard(!validate_doc(filter), Error(utils.default_error))
+  use <- bool.guard(!validate_doc(change), Error(utils.default_error))
 
   let update = [
     #("q", filter),
@@ -340,7 +333,7 @@ fn update(
 }
 
 fn delete(collection: client.Collection, filter: value.Value, multi: Bool) {
-  use _ <- unwrap_doc(filter)
+  use <- bool.guard(!validate_doc(filter), Error(utils.default_error))
 
   case
     collection
@@ -390,25 +383,13 @@ fn delete(collection: client.Collection, filter: value.Value, multi: Bool) {
   }
 }
 
-fn unwrap_doc(candidate: value.Value, rest) {
+fn validate_doc(candidate: value.Value) {
   case candidate {
-    value.Document(doc) -> rest(doc)
-    _ -> Error(utils.default_error)
+    value.Document(_) -> True
+    _ -> False
   }
 }
 
-fn unwrap_all_docs(candidates: List(value.Value), rest) {
-  case
-    list.try_fold(
-      candidates,
-      [],
-      fn(acc, candidate) {
-        use doc <- unwrap_doc(candidate)
-        Ok(list.append(acc, [doc]))
-      },
-    )
-  {
-    Ok(docs) -> rest(docs)
-    _ -> Error(utils.default_error)
-  }
+fn validate_all_docs(candidates: List(value.Value)) {
+  list.all(candidates, validate_doc)
 }

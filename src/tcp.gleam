@@ -2,7 +2,7 @@ import gleam/list
 import gleam/string
 import gleam/bit_string
 
-pub external type Socket
+pub type Socket
 
 pub type TCPResult {
   Ok
@@ -34,11 +34,14 @@ pub fn receive(socket) {
   tcp_receive(socket, 0)
 }
 
-external fn tcp_connect(List(Int), Int, List(TCPOption)) -> Result(Socket, Nil) =
-  "gen_tcp" "connect"
+@external(erlang, "gen_tcp", "connect")
+fn tcp_connect(host: List(Int), port: Int, ops: List(TCPOption)) -> Result(
+  Socket,
+  Nil,
+)
 
-external fn tcp_send(Socket, BitString) -> TCPResult =
-  "gen_tcp" "send"
+@external(erlang, "gen_tcp", "send")
+fn tcp_send(socket: Socket, data: BitString) -> TCPResult
 
-external fn tcp_receive(Socket, Int) -> Result(BitString, Nil) =
-  "gen_tcp" "recv"
+@external(erlang, "gen_tcp", "recv")
+fn tcp_receive(socket: Socket, length: Int) -> Result(BitString, Nil)
