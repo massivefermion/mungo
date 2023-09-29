@@ -14,10 +14,6 @@ pub opaque type Cursor {
   )
 }
 
-pub fn new(collection: client.Collection, id: Int, batch: List(value.Value)) {
-  Cursor(collection, id, list.length(batch), iterator.from_list(batch))
-}
-
 pub fn to_list(cursor: Cursor) {
   to_list_internal(cursor, [])
 }
@@ -59,6 +55,10 @@ pub fn next(cursor: Cursor) {
         }
       }
   }
+}
+
+pub fn new(collection: client.Collection, id: Int, batch: List(value.Value)) {
+  Cursor(collection, id, list.length(batch), iterator.from_list(batch))
 }
 
 fn to_list_internal(cursor, storage) {

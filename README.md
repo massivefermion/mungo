@@ -23,11 +23,11 @@ gleam add gleam_mongo
 - [x] support mongodb cursors
 - [ ] support connection pooling
 - [ ] support bulk operations
-- [ ] support transactions
-- [ ] support other mongodb commands
 - [ ] support tls
 - [ ] support clusters
+- [ ] support transactions
 - [ ] support change streams
+- [ ] support other mongodb commands
 
 ## Usage
 
@@ -35,7 +35,6 @@ gleam add gleam_mongo
 import gleam/uri
 import gleam/option
 import mongo
-import mongo/cursor
 import mongo/crud.{Sort, Upsert}
 import mongo/aggregation.{Let, add_fields, aggregate, exec, match}
 import bson/value
@@ -90,7 +89,7 @@ pub fn main() {
       value.Document([#("email", value.Regex(#("yahoo", "")))]),
       [Sort(value.Document([#("username", value.Int32(-1))]))],
     )
-  let _yahoo_users = cursor.to_list(yahoo_cursor)
+  let _yahoo_users = mongo.to_list(yahoo_cursor)
 
   let assert Ok(underage_lindsey_cursor) =
     users
@@ -124,10 +123,10 @@ pub fn main() {
 
   let assert #(option.Some(_underage_lindsey), underage_lindsey_cursor) =
     underage_lindsey_cursor
-    |> cursor.next
+    |> mongo.next
 
   let assert #(option.None, _) =
     underage_lindsey_cursor
-    |> cursor.next
+    |> mongo.next
 }
 ```

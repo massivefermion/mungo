@@ -1,6 +1,6 @@
 name = "gleam_mongo"
 target = "erlang"
-version = "0.18.0"
+version = "0.18.1"
 
 description = "A mongodb driver for gleam"
 licences = ["Apache-2.0"]
@@ -12,8 +12,9 @@ repository = {type = "github", user = "massivefermion", repo = "gleam_mongo"}
 
 internal_modules = [
   "mongo/tcp",
-  "mongo/client",
   "mongo/scram",
+  "mongo/cursor",
+  "mongo/client",
 ]
 
 [dependencies]

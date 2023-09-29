@@ -1,8 +1,17 @@
 import mongo/crud
 import mongo/client
+import mongo/cursor
 
 pub fn connect(uri) {
   client.connect(uri)
+}
+
+pub fn next(cursor) {
+  cursor.next(cursor)
+}
+
+pub fn to_list(cursor) {
+  cursor.to_list(cursor)
 }
 
 pub fn collection(db, name) {
