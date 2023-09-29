@@ -122,7 +122,7 @@ pub fn main() {
     |> match(value.Document([#("first_name", value.Str("lindsey"))]))
     |> exec
 
-  let #(option.Some(_underage_lindsey), underage_lindsey_cursor) =
+  let assert #(option.Some(_underage_lindsey), underage_lindsey_cursor) =
     underage_lindsey_cursor
     |> cursor.next
 
