@@ -5,7 +5,7 @@ import gleam/bit_string
 pub type Socket
 
 pub type TCPResult {
-  Ok
+  OK
 }
 
 type TCPOption {
@@ -31,14 +31,24 @@ pub fn send(socket, data) {
 }
 
 pub fn receive(socket) {
-  tcp_receive(socket, 0)
+  case tcp_receive(socket, 4) {
+    Ok(<<size:32-little>>) ->
+      case tcp_receive(socket, size - 4) {
+        Ok(rest) ->
+          bit_string.append(<<size:32-little>>, rest)
+          |> Ok
+        Error(Nil) -> Error(Nil)
+      }
+    Error(Nil) -> Error(Nil)
+  }
 }
 
 @external(erlang, "gen_tcp", "connect")
-fn tcp_connect(host: List(Int), port: Int, ops: List(TCPOption)) -> Result(
-  Socket,
-  Nil,
-)
+fn tcp_connect(
+  host: List(Int),
+  port: Int,
+  ops: List(TCPOption),
+) -> Result(Socket, Nil)
 
 @external(erlang, "gen_tcp", "send")
 fn tcp_send(socket: Socket, data: BitString) -> TCPResult

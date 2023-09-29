@@ -5,7 +5,7 @@ import gleam/string
 import gleam/option
 import gleam/result
 import gleam/bit_string
-import tcp
+import mongo/tcp
 import mongo/scram
 import bson/value
 import bson.{decode, encode}
@@ -52,6 +52,17 @@ pub fn collection(db: Database, name: String) -> Collection {
   Collection(db, name)
 }
 
+pub fn get_more(collection: Collection, id: Int, batch_size: Int) {
+  execute(
+    collection,
+    value.Document([
+      #("getMore", value.Int64(id)),
+      #("collection", value.Str(collection.name)),
+      #("batchSize", value.Int32(batch_size)),
+    ]),
+  )
+}
+
 pub fn execute(
   collection: Collection,
   cmd: value.Value,
@@ -62,7 +73,7 @@ pub fn execute(
         Ok([
           #("ok", value.Double(0.0)),
           #("errmsg", value.Str(msg)),
-          #("code", value.Integer(code)),
+          #("code", value.Int32(code)),
           #("codeName", _),
         ]) -> Error(#(code, msg))
         Ok(result) -> Ok(result)
@@ -117,7 +128,7 @@ fn send_cmd(
     [<<size:32-little, 0:32, 0:32, 2013:32-little, 0:32, 0>>, encoded]
     |> bit_string.concat
   case tcp.send(socket, packet) {
-    tcp.Ok ->
+    tcp.OK ->
       case tcp.receive(socket) {
         Ok(response) -> {
           let <<_:168, rest:bit_string>> = response
@@ -134,7 +145,6 @@ fn send_cmd(
 
 fn parse_connection_string(uri: String) -> Result(ConnectionInfo, Nil) {
   use parsed <- result.then(uri.parse(uri))
-
   use <- bool.guard(parsed.scheme != option.Some("mongodb"), Error(Nil))
   use <- bool.guard(
     option.is_none(parsed.host) || parsed.host == option.Some(""),

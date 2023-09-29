@@ -1,10 +1,25 @@
 import gleam/list
 import gleam/bool
 import gleam/pair
+import gleam/option
 import mongo/utils
+import mongo/cursor
 import mongo/client
 import bson/value
 import bson/object_id
+
+pub type FindOption {
+  Skip(Int)
+  Limit(Int)
+  BatchSize(Int)
+  Sort(value.Value)
+  Projection(value.Value)
+}
+
+pub type UpdateOption {
+  Upsert
+  ArrayFilters(List(value.Value))
+}
 
 pub type InsertResult {
   InsertResult(inserted: Int, inserted_ids: List(value.Value))
@@ -43,10 +58,18 @@ pub fn find_one(collection, filter, projection) {
 
   case
     collection
-    |> find_many(filter, [utils.Limit(1), utils.Projection(projection)])
+    |> find_many(filter, [Limit(1), Projection(projection)])
   {
-    Ok([]) -> Ok(value.Null)
-    Ok([doc]) -> Ok(doc)
+    Ok(cursor) ->
+      case cursor.next(cursor) {
+        #(option.Some(doc), _) ->
+          doc
+          |> option.Some
+          |> Ok
+        #(option.None, _) ->
+          option.None
+          |> Ok
+      }
     Error(error) -> Error(error)
   }
 }
@@ -54,16 +77,13 @@ pub fn find_one(collection, filter, projection) {
 pub fn find_many(
   collection: client.Collection,
   filter: value.Value,
-  options: List(utils.FindOption),
-) -> Result(List(value.Value), utils.MongoError) {
+  options: List(FindOption),
+) {
   collection
   |> find(filter, options)
 }
 
-pub fn find_all(
-  collection: client.Collection,
-  options: List(utils.FindOption),
-) -> Result(List(value.Value), utils.MongoError) {
+pub fn find_all(collection: client.Collection, options: List(FindOption)) {
   collection
   |> find(value.Document([]), options)
 }
@@ -72,7 +92,7 @@ pub fn update_one(
   collection: client.Collection,
   filter: value.Value,
   change: value.Value,
-  options: List(utils.UpdateOption),
+  options: List(UpdateOption),
 ) {
   collection
   |> update(filter, change, options, False)
@@ -82,7 +102,7 @@ pub fn update_many(
   collection: client.Collection,
   filter: value.Value,
   change: value.Value,
-  options: List(utils.UpdateOption),
+  options: List(UpdateOption),
 ) {
   collection
   |> update(filter, change, options, True)
@@ -103,7 +123,7 @@ pub fn count_all(collection: client.Collection) {
     collection
     |> client.execute(value.Document([#("count", value.Str(collection.name))]))
   {
-    Ok([#("n", value.Integer(n)), #("ok", ok)]) ->
+    Ok([#("n", value.Int32(n)), #("ok", ok)]) ->
       case ok {
         value.Double(1.0) -> Ok(n)
         _ -> Error(utils.default_error)
@@ -123,7 +143,7 @@ pub fn count(collection: client.Collection, filter: value.Value) {
       #("query", filter),
     ]))
   {
-    Ok([#("n", value.Integer(n)), #("ok", ok)]) ->
+    Ok([#("n", value.Int32(n)), #("ok", ok)]) ->
       case ok {
         value.Double(1.0) -> Ok(n)
         _ -> Error(utils.default_error)
@@ -180,7 +200,7 @@ pub fn insert_many(
       #("documents", value.Array(docs)),
     ]))
   {
-    Ok([#("n", value.Integer(n)), #("ok", ok)]) ->
+    Ok([#("n", value.Int32(n)), #("ok", ok)]) ->
       case ok {
         value.Double(1.0) -> Ok(InsertResult(n, inserted_ids))
         _ -> Error(utils.default_error)
@@ -193,7 +213,7 @@ pub fn insert_many(
           case error {
             value.Document([
               #("index", _),
-              #("code", value.Integer(code)),
+              #("code", value.Int32(code)),
               #("keyPattern", _),
               #("keyValue", source),
               #("errmsg", value.Str(msg)),
@@ -212,8 +232,8 @@ pub fn insert_many(
 fn find(
   collection: client.Collection,
   filter: value.Value,
-  options: List(utils.FindOption),
-) -> Result(List(value.Value), utils.MongoError) {
+  options: List(FindOption),
+) {
   use <- bool.guard(!validate_doc(filter), Error(utils.default_error))
 
   let body =
@@ -222,12 +242,13 @@ fn find(
       [#("find", value.Str(collection.name)), #("filter", filter)],
       fn(acc, opt) {
         case opt {
-          utils.Sort(value.Document(sort)) ->
+          Sort(value.Document(sort)) ->
             list.key_set(acc, "sort", value.Document(sort))
-          utils.Projection(value.Document(projection)) ->
+          Projection(value.Document(projection)) ->
             list.key_set(acc, "projection", value.Document(projection))
-          utils.Skip(skip) -> list.key_set(acc, "skip", value.Integer(skip))
-          utils.Limit(limit) -> list.key_set(acc, "limit", value.Integer(limit))
+          Skip(skip) -> list.key_set(acc, "skip", value.Int32(skip))
+          Limit(limit) -> list.key_set(acc, "limit", value.Int32(limit))
+          BatchSize(size) -> list.key_set(acc, "batchSize", value.Int32(size))
         }
       },
     )
@@ -237,9 +258,12 @@ fn find(
   {
     Ok(result) -> {
       let [#("cursor", value.Document(result)), #("ok", ok)] = result
-      let assert Ok(value.Array(docs)) = list.key_find(result, "firstBatch")
+      let assert Ok(value.Int64(id)) = list.key_find(result, "id")
+      let assert Ok(value.Array(batch)) = list.key_find(result, "firstBatch")
       case ok {
-        value.Double(1.0) -> Ok(docs)
+        value.Double(1.0) ->
+          cursor.new(collection, id, batch)
+          |> Ok
         _ -> Error(utils.default_error)
       }
     }
@@ -252,7 +276,7 @@ fn update(
   collection: client.Collection,
   filter: value.Value,
   change: value.Value,
-  options: List(utils.UpdateOption),
+  options: List(UpdateOption),
   multi: Bool,
 ) {
   use <- bool.guard(!validate_doc(filter), Error(utils.default_error))
@@ -269,8 +293,8 @@ fn update(
       update,
       fn(acc, opt) {
         case opt {
-          utils.Upsert -> list.key_set(acc, "upsert", value.Boolean(True))
-          utils.ArrayFilters(filters) ->
+          Upsert -> list.key_set(acc, "upsert", value.Boolean(True))
+          ArrayFilters(filters) ->
             list.key_set(acc, "arrayFilters", value.Array(filters))
         }
       },
@@ -284,8 +308,8 @@ fn update(
     ]))
   {
     Ok([
-      #("n", value.Integer(n)),
-      #("nModified", value.Integer(modified)),
+      #("n", value.Int32(n)),
+      #("nModified", value.Int32(modified)),
       #("ok", ok),
     ]) ->
       case ok {
@@ -293,7 +317,7 @@ fn update(
         _ -> Error(utils.default_error)
       }
     Ok([
-      #("n", value.Integer(n)),
+      #("n", value.Int32(n)),
       #(
         "upserted",
         value.Array([value.Document([#("index", _), #("_id", upserted)])]),
@@ -317,7 +341,7 @@ fn update(
           case error {
             value.Document([
               #("index", _),
-              #("code", value.Integer(code)),
+              #("code", value.Int32(code)),
               #("keyPattern", _),
               #("keyValue", source),
               #("errmsg", value.Str(msg)),
@@ -346,7 +370,7 @@ fn delete(collection: client.Collection, filter: value.Value, multi: Bool) {
             #("q", filter),
             #(
               "limit",
-              value.Integer(case multi {
+              value.Int32(case multi {
                 True -> 0
                 False -> 1
               }),
@@ -356,7 +380,7 @@ fn delete(collection: client.Collection, filter: value.Value, multi: Bool) {
       ),
     ]))
   {
-    Ok([#("n", value.Integer(n)), #("ok", ok)]) ->
+    Ok([#("n", value.Int32(n)), #("ok", ok)]) ->
       case ok {
         value.Double(1.0) -> Ok(n)
         _ -> Error(utils.default_error)
@@ -368,7 +392,7 @@ fn delete(collection: client.Collection, filter: value.Value, multi: Bool) {
           case error {
             value.Document([
               #("index", _),
-              #("code", value.Integer(code)),
+              #("code", value.Int32(code)),
               #("keyPattern", _),
               #("keyValue", source),
               #("errmsg", value.Str(msg)),

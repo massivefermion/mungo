@@ -1,13 +1,13 @@
-import gleam/result
 import gleam/int
-import bson/value
 import gleam/list
 import gleam/base
-import bson/generic
+import gleam/result
 import gleam/string
 import gleam/crypto
 import gleam/bit_string
 import gleam/bitwise.{exclusive_or as bxor}
+import bson/value
+import bson/generic
 
 pub fn first_payload(username: String) {
   let nonce =
@@ -38,7 +38,7 @@ pub fn parse_first_reply(reply: List(#(String, value.Value))) {
     [#("ok", value.Double(0.0)), ..] -> Error(Nil)
 
     [
-      #("conversationId", value.Integer(cid)),
+      #("conversationId", value.Int32(cid)),
       #("done", value.Boolean(False)),
       #("payload", value.Binary(value.Generic(data))),
       #("ok", value.Double(1.0)),
@@ -113,7 +113,7 @@ pub fn second_message(
   #(
     value.Document([
       #("saslContinue", value.Boolean(True)),
-      #("conversationId", value.Integer(cid)),
+      #("conversationId", value.Int32(cid)),
       #("payload", value.Binary(value.Generic(second_payload))),
     ]),
     server_signature,
@@ -167,7 +167,13 @@ pub fn hi(password, salt, iterations) {
 }
 
 @external(erlang, "crypto", "pbkdf2_hmac")
-fn pbkdf2(alg: crypto.HashAlgorithm, password: String, salt: BitString, iterations: Int, key_len: Int) -> BitString
+fn pbkdf2(
+  alg: crypto.HashAlgorithm,
+  password: String,
+  salt: BitString,
+  iterations: Int,
+  key_len: Int,
+) -> BitString
 
 fn xor(a: BitString, b: BitString, storage: BitString) -> BitString {
   let <<fa, ra:bit_string>> = a

@@ -20,7 +20,7 @@ gleam add gleam_mongo
 - [x] support aggregation
 - [x] support connection strings
 - [x] support authentication
-- [ ] support mongodb cursors
+- [x] support mongodb cursors
 - [ ] support connection pooling
 - [ ] support bulk operations
 - [ ] support transactions
@@ -32,52 +32,102 @@ gleam add gleam_mongo
 ## Usage
 
 ```gleam
-import gleam/result
-import comics/draw
-import bson/value
+import gleam/uri
+import gleam/option
 import mongo
-import mongo/utils
-import mongo/aggregation.{add_fields, aggregate, exec, lookup}
+import mongo/cursor
+import mongo/crud.{Sort, Upsert}
+import mongo/aggregation.{Let, add_fields, aggregate, exec, match}
+import bson/value
 
 pub fn main() {
-  let assert Ok(comix_db) =
-    mongo.connect("mongodb://Sketch:RoadKill@localhost/comix_zone")
+  let encoded_password = uri.percent_encode("strong password")
+  let assert Ok(db) =
+    mongo.connect(
+      "mongodb://app-dev:" <> encoded_password <> "@localhost/app-db?authSource=admin",
+    )
 
-  let characters =
-    comix_db
-    |> mongo.collection("characters")
+  let users =
+    db
+    |> mongo.collection("users")
 
-  characters
-  |> mongo.insert_one(value.Document([
-    #("name", value.Str("Alissa")),
-    #("race", value.Str("human")),
-  ]))
-
-  characters
-  |> mongo.update_one(
-    value.Document([#("name", value.Str("Mortus"))]),
-    value.Document([#("$set", value.Document([#("race", value.Str("mutant"))]))]),
-    [utils.Upsert],
-  )
-
-  characters
-  |> aggregate
-  |> lookup(
-    from: "styles",
-    local_field: "name",
-    foreign_field: "subject",
-    alias: "style",
-  )
-  |> add_fields(value.Document([
-    #(
-      "style",
+  let _ =
+    users
+    |> mongo.insert_many([
       value.Document([
-        #("$arrayElemAt", value.Array([value.Str("$style"), value.Integer(0)])),
+        #("username", value.Str("jmorrow")),
+        #("name", value.Str("vincent freeman")),
+        #("email", value.Str("jmorrow@gattaca.eu")),
+        #("age", value.Int32(32)),
       ]),
-    ),
-  ]))
-  |> exec
-  |> result.unwrap([])
-  |> draw.characters
+      value.Document([
+        #("username", value.Str("real-jerome")),
+        #("name", value.Str("jerome eugene morrow")),
+        #("email", value.Str("real-jerome@running.at")),
+        #("age", value.Int32(32)),
+      ]),
+    ])
+
+  let _ =
+    users
+    |> mongo.update_one(
+      value.Document([#("username", value.Str("real-jerome"))]),
+      value.Document([
+        #(
+          "$set",
+          value.Document([
+            #("username", value.Str("eugene")),
+            #("email", value.Str("eugene@running.at ")),
+          ]),
+        ),
+      ]),
+      [Upsert],
+    )
+
+  let assert Ok(yahoo_cursor) =
+    users
+    |> mongo.find_many(
+      value.Document([#("email", value.Regex(#("yahoo", "")))]),
+      [Sort(value.Document([#("username", value.Int32(-1))]))],
+    )
+  let _yahoo_users = cursor.to_list(yahoo_cursor)
+
+  let assert Ok(underage_lindsey_cursor) =
+    users
+    |> aggregate([Let(value.Document([#("minimum_age", value.Int32(21))]))])
+    |> match(value.Document([
+      #(
+        "$expr",
+        value.Document([
+          #("$lt", value.Array([value.Str("$age"), value.Str("$$minimum_age")])),
+        ]),
+      ),
+    ]))
+    |> add_fields(value.Document([
+      #(
+        "first_name",
+        value.Document([
+          #(
+            "$arrayElemAt",
+            value.Array([
+              value.Document([
+                #("$split", value.Array([value.Str("$name"), value.Str(" ")])),
+              ]),
+              value.Int32(0),
+            ]),
+          ),
+        ]),
+      ),
+    ]))
+    |> match(value.Document([#("first_name", value.Str("lindsey"))]))
+    |> exec
+
+  let #(_underage_lindsey, underage_lindsey_cursor) =
+    underage_lindsey_cursor
+    |> cursor.next
+
+  let assert #(option.None, _) =
+    underage_lindsey_cursor
+    |> cursor.next
 }
 ```

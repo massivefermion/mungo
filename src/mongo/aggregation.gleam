@@ -1,15 +1,28 @@
 import gleam/list
 import gleam/queue
 import mongo/client
+import mongo/cursor
 import mongo/utils.{MongoError, default_error}
 import bson/value
 
 pub opaque type Pipeline {
-  Pipeline(collection: client.Collection, stages: queue.Queue(value.Value))
+  Pipeline(
+    collection: client.Collection,
+    options: List(AggregateOption),
+    stages: queue.Queue(value.Value),
+  )
 }
 
-pub fn aggregate(collection: client.Collection) -> Pipeline {
-  Pipeline(collection, stages: queue.new())
+pub type AggregateOption {
+  BatchSize(Int)
+  Let(value.Value)
+}
+
+pub fn aggregate(
+  collection: client.Collection,
+  options: List(AggregateOption),
+) -> Pipeline {
+  Pipeline(collection, options, stages: queue.new())
 }
 
 pub fn stages(pipeline: Pipeline, docs: List(value.Value)) {
@@ -64,34 +77,53 @@ pub fn group(pipeline: Pipeline, doc: value.Value) {
 }
 
 pub fn skip(pipeline: Pipeline, count: Int) {
-  append_stage(pipeline, value.Document([#("$skip", value.Integer(count))]))
+  append_stage(pipeline, value.Document([#("$skip", value.Int32(count))]))
 }
 
 pub fn limit(pipeline: Pipeline, count: Int) {
-  append_stage(pipeline, value.Document([#("$limit", value.Integer(count))]))
+  append_stage(pipeline, value.Document([#("$limit", value.Int32(count))]))
 }
 
 pub fn exec(pipeline: Pipeline) {
-  case
-    client.execute(
-      pipeline.collection,
-      value.Document([
+  let body =
+    list.fold(
+      pipeline.options,
+      [
         #("aggregate", value.Str(pipeline.collection.name)),
-        #("cursor", value.Document([])),
         #(
           "pipeline",
           pipeline.stages
           |> queue.to_list
           |> value.Array,
         ),
-      ]),
+        #("cursor", value.Document([])),
+      ],
+      fn(acc, opt) {
+        case opt {
+          BatchSize(size) ->
+            list.key_set(
+              acc,
+              "cursor",
+              value.Document([#("batchSize", value.Int32(size))]),
+            )
+          Let(value.Document(let_doc)) ->
+            list.key_set(acc, "let", value.Document(let_doc))
+        }
+      },
     )
-  {
+
+  case client.execute(pipeline.collection, value.Document(body)) {
     Ok(result) -> {
       let [#("cursor", value.Document(result)), #("ok", ok)] = result
-      let [#("firstBatch", value.Array(docs)), #("id", _), #("ns", _)] = result
+      let [
+        #("firstBatch", value.Array(batch)),
+        #("id", value.Int64(id)),
+        #("ns", _),
+      ] = result
       case ok {
-        value.Double(1.0) -> Ok(docs)
+        value.Double(1.0) ->
+          cursor.new(pipeline.collection, id, batch)
+          |> Ok
         _ -> Error(default_error)
       }
     }
@@ -102,6 +134,7 @@ pub fn exec(pipeline: Pipeline) {
 fn append_stage(pipeline: Pipeline, stage: value.Value) {
   Pipeline(
     collection: pipeline.collection,
+    options: pipeline.options,
     stages: pipeline.stages
     |> queue.push_back(stage),
   )
