@@ -1,9 +1,9 @@
 import gleam/list
 import gleam/option
 import gleam/iterator
-import mongo/utils
-import mongo/client
-import bson/value
+import mungo/utils
+import mungo/client
+import bison/value
 
 pub opaque type Cursor {
   Cursor(

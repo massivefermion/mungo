@@ -6,8 +6,8 @@ import gleam/string
 import gleam/crypto
 import gleam/bit_string
 import gleam/bitwise.{exclusive_or as bxor}
-import bson/value
-import bson/generic
+import bison/value
+import bison/generic
 
 pub fn first_payload(username: String) {
   let nonce =

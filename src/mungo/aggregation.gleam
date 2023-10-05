@@ -1,9 +1,9 @@
 import gleam/list
 import gleam/queue
-import mongo/client
-import mongo/cursor
-import mongo/utils.{MongoError, default_error}
-import bson/value
+import mungo/client
+import mungo/cursor
+import mungo/utils.{MongoError, default_error}
+import bison/value
 
 pub opaque type Pipeline {
   Pipeline(

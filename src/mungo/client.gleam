@@ -5,10 +5,10 @@ import gleam/string
 import gleam/option
 import gleam/result
 import gleam/bit_string
-import mongo/tcp
-import mongo/scram
-import bson/value
-import bson.{decode, encode}
+import mungo/tcp
+import mungo/scram
+import bison/value
+import bison.{decode, encode}
 
 pub opaque type ConnectionInfo {
   ConnectionInfo(

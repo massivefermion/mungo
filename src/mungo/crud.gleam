@@ -2,11 +2,11 @@ import gleam/list
 import gleam/bool
 import gleam/pair
 import gleam/option
-import mongo/utils
-import mongo/cursor
-import mongo/client
-import bson/value
-import bson/object_id
+import mungo/utils
+import mungo/cursor
+import mungo/client
+import bison/value
+import bison/object_id
 
 pub type FindOption {
   Skip(Int)

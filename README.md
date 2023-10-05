@@ -1,4 +1,7 @@
-# gleam_mongo
+# mungo (formerly gleam_mongo)
+> mungo: a felted fabric made from the shredded fibre of repurposed woollen cloth
+---
+
 
 A mongodb driver for gleam
 
@@ -11,7 +14,7 @@ gleam shell # Run an Erlang shell
 ## Installation
 
 ```sh
-gleam add gleam_mongo
+gleam add mungo
 ```
 
 ## Roadmap
@@ -34,25 +37,25 @@ gleam add gleam_mongo
 ```gleam
 import gleam/uri
 import gleam/option
-import mongo
-import mongo/crud.{Sort, Upsert}
-import mongo/aggregation.{Let, add_fields, aggregate, exec, match}
-import bson/value
+import mungo
+import mungo/crud.{Sort, Upsert}
+import mungo/aggregation.{Let, add_fields, aggregate, exec, match}
+import bison/value
 
 pub fn main() {
   let encoded_password = uri.percent_encode("strong password")
   let assert Ok(db) =
-    mongo.connect(
+    mungo.connect(
       "mongodb://app-dev:" <> encoded_password <> "@localhost/app-db?authSource=admin",
     )
 
   let users =
     db
-    |> mongo.collection("users")
+    |> mungo.collection("users")
 
   let _ =
     users
-    |> mongo.insert_many([
+    |> mungo.insert_many([
       value.Document([
         #("username", value.Str("jmorrow")),
         #("name", value.Str("vincent freeman")),
@@ -69,7 +72,7 @@ pub fn main() {
 
   let _ =
     users
-    |> mongo.update_one(
+    |> mungo.update_one(
       value.Document([#("username", value.Str("real-jerome"))]),
       value.Document([
         #(
@@ -85,11 +88,11 @@ pub fn main() {
 
   let assert Ok(yahoo_cursor) =
     users
-    |> mongo.find_many(
+    |> mungo.find_many(
       value.Document([#("email", value.Regex(#("yahoo", "")))]),
       [Sort(value.Document([#("username", value.Int32(-1))]))],
     )
-  let _yahoo_users = mongo.to_list(yahoo_cursor)
+  let _yahoo_users = mungo.to_list(yahoo_cursor)
 
   let assert Ok(underage_lindsey_cursor) =
     users
@@ -123,10 +126,10 @@ pub fn main() {
 
   let assert #(option.Some(_underage_lindsey), underage_lindsey_cursor) =
     underage_lindsey_cursor
-    |> mongo.next
+    |> mungo.next
 
   let assert #(option.None, _) =
     underage_lindsey_cursor
-    |> mongo.next
+    |> mungo.next
 }
 ```

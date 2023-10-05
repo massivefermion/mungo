@@ -1,6 +1,6 @@
-import mongo/crud
-import mongo/client
-import mongo/cursor
+import mungo/crud
+import mungo/client
+import mungo/cursor
 
 pub fn connect(uri) {
   client.connect(uri)
