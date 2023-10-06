@@ -27,17 +27,17 @@ pub fn aggregate(
   Pipeline(collection, options, stages: queue.new())
 }
 
-pub fn append_stage(pipeline: Pipeline, stage: bson.Value) {
+pub fn append_stage(pipeline: Pipeline, stage: #(String, bson.Value)) {
   Pipeline(
     collection: pipeline.collection,
     options: pipeline.options,
     stages: pipeline.stages
-    |> queue.push_back(stage),
+    |> queue.push_back(bson.Document([stage])),
   )
 }
 
-pub fn match(pipeline: Pipeline, doc: bson.Value) {
-  append_stage(pipeline, bson.Document([#("$match", doc)]))
+pub fn match(pipeline: Pipeline, doc: List(#(String, bson.Value))) {
+  append_stage(pipeline, #("$match", bson.Document(doc)))
 }
 
 pub fn lookup(
@@ -49,17 +49,15 @@ pub fn lookup(
 ) {
   append_stage(
     pipeline,
-    bson.Document([
-      #(
-        "$lookup",
-        bson.Document([
-          #("from", bson.Str(from)),
-          #("localField", bson.Str(local_field)),
-          #("foreignField", bson.Str(foreign_field)),
-          #("as", bson.Str(alias)),
-        ]),
-      ),
-    ]),
+    #(
+      "$lookup",
+      bson.Document([
+        #("from", bson.Str(from)),
+        #("localField", bson.Str(local_field)),
+        #("foreignField", bson.Str(foreign_field)),
+        #("as", bson.Str(alias)),
+      ]),
+    ),
   )
 }
 
@@ -72,17 +70,15 @@ pub fn pipelined_lookup(
 ) {
   append_stage(
     pipeline,
-    bson.Document([
-      #(
-        "$lookup",
-        bson.Document([
-          #("from", bson.Str(from)),
-          #("let", bson.Document(definitions)),
-          #("pipeline", bson.Array(lookup_pipeline)),
-          #("as", bson.Str(alias)),
-        ]),
-      ),
-    ]),
+    #(
+      "$lookup",
+      bson.Document([
+        #("from", bson.Str(from)),
+        #("let", bson.Document(definitions)),
+        #("pipeline", bson.Array(lookup_pipeline)),
+        #("as", bson.Str(alias)),
+      ]),
+    ),
   )
 }
 
@@ -93,18 +89,16 @@ pub fn unwind(
 ) {
   append_stage(
     pipeline,
-    bson.Document([
-      #(
-        "$unwind",
-        bson.Document([
-          #("path", bson.Str(path)),
-          #(
-            "preserveNullAndEmptyArrays",
-            bson.Boolean(preserve_null_and_empty_arrays),
-          ),
-        ]),
-      ),
-    ]),
+    #(
+      "$unwind",
+      bson.Document([
+        #("path", bson.Str(path)),
+        #(
+          "preserveNullAndEmptyArrays",
+          bson.Boolean(preserve_null_and_empty_arrays),
+        ),
+      ]),
+    ),
   )
 }
 
@@ -116,44 +110,42 @@ pub fn unwind_with_index(
 ) {
   append_stage(
     pipeline,
-    bson.Document([
-      #(
-        "$unwind",
-        bson.Document([
-          #("path", bson.Str(path)),
-          #("includeArrayIndex", bson.Str(index_field)),
-          #(
-            "preserveNullAndEmptyArrays",
-            bson.Boolean(preserve_null_and_empty_arrays),
-          ),
-        ]),
-      ),
-    ]),
+    #(
+      "$unwind",
+      bson.Document([
+        #("path", bson.Str(path)),
+        #("includeArrayIndex", bson.Str(index_field)),
+        #(
+          "preserveNullAndEmptyArrays",
+          bson.Boolean(preserve_null_and_empty_arrays),
+        ),
+      ]),
+    ),
   )
 }
 
-pub fn project(pipeline: Pipeline, doc: bson.Value) {
-  append_stage(pipeline, bson.Document([#("$project", doc)]))
+pub fn project(pipeline: Pipeline, doc: List(#(String, bson.Value))) {
+  append_stage(pipeline, #("$project", bson.Document(doc)))
 }
 
-pub fn add_fields(pipeline: Pipeline, doc: bson.Value) {
-  append_stage(pipeline, bson.Document([#("$addFields", doc)]))
+pub fn add_fields(pipeline: Pipeline, doc: List(#(String, bson.Value))) {
+  append_stage(pipeline, #("$addFields", bson.Document(doc)))
 }
 
-pub fn sort(pipeline: Pipeline, doc: bson.Value) {
-  append_stage(pipeline, bson.Document([#("$sort", doc)]))
+pub fn sort(pipeline: Pipeline, doc: List(#(String, bson.Value))) {
+  append_stage(pipeline, #("$sort", bson.Document(doc)))
 }
 
-pub fn group(pipeline: Pipeline, doc: bson.Value) {
-  append_stage(pipeline, bson.Document([#("$group", doc)]))
+pub fn group(pipeline: Pipeline, doc: List(#(String, bson.Value))) {
+  append_stage(pipeline, #("$group", bson.Document(doc)))
 }
 
 pub fn skip(pipeline: Pipeline, count: Int) {
-  append_stage(pipeline, bson.Document([#("$skip", bson.Int32(count))]))
+  append_stage(pipeline, #("$skip", bson.Int32(count)))
 }
 
 pub fn limit(pipeline: Pipeline, count: Int) {
-  append_stage(pipeline, bson.Document([#("$limit", bson.Int32(count))]))
+  append_stage(pipeline, #("$limit", bson.Int32(count)))
 }
 
 pub fn to_cursor(pipeline: Pipeline) {
