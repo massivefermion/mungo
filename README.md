@@ -126,7 +126,7 @@ pub fn main() {
     |> match(bson.Document([#("first_name", bson.Str("lindsey"))]))
     |> pipelined_lookup(
       from: "profiles",
-      define: [#("guy", bson.Str("$username"))],
+      define: [#("user", bson.Str("$username"))],
       pipeline: [
         bson.Document([
           #(
@@ -137,7 +137,7 @@ pub fn main() {
                 bson.Document([
                   #(
                     "$eq",
-                    bson.Array([bson.Str("$username"), bson.Str("$$guy")]),
+                    bson.Array([bson.Str("$username"), bson.Str("$$user")]),
                   ),
                 ]),
               ),
