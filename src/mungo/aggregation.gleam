@@ -1,21 +1,23 @@
+//// for more information, see [here](https://www.mongodb.com/docs/manual/reference/operator/aggregation-pipeline)
+
 import gleam/list
 import gleam/queue
 import mungo/client
 import mungo/cursor
 import mungo/utils.{MongoError, default_error}
-import bison/value
+import bison/bson
 
 pub opaque type Pipeline {
   Pipeline(
     collection: client.Collection,
     options: List(AggregateOption),
-    stages: queue.Queue(value.Value),
+    stages: queue.Queue(bson.Value),
   )
 }
 
 pub type AggregateOption {
   BatchSize(Int)
-  Let(value.Value)
+  Let(bson.Value)
 }
 
 pub fn aggregate(
@@ -25,16 +27,17 @@ pub fn aggregate(
   Pipeline(collection, options, stages: queue.new())
 }
 
-pub fn stages(pipeline: Pipeline, docs: List(value.Value)) {
-  list.fold(
-    docs,
-    pipeline,
-    fn(new_pipeline, current) { append_stage(new_pipeline, current) },
+pub fn append_stage(pipeline: Pipeline, stage: bson.Value) {
+  Pipeline(
+    collection: pipeline.collection,
+    options: pipeline.options,
+    stages: pipeline.stages
+    |> queue.push_back(stage),
   )
 }
 
-pub fn match(pipeline: Pipeline, doc: value.Value) {
-  append_stage(pipeline, value.Document([#("$match", doc)]))
+pub fn match(pipeline: Pipeline, doc: bson.Value) {
+  append_stage(pipeline, bson.Document([#("$match", doc)]))
 }
 
 pub fn lookup(
@@ -46,57 +49,126 @@ pub fn lookup(
 ) {
   append_stage(
     pipeline,
-    value.Document([
+    bson.Document([
       #(
         "$lookup",
-        value.Document([
-          #("from", value.Str(from)),
-          #("localField", value.Str(local_field)),
-          #("foreignField", value.Str(foreign_field)),
-          #("as", value.Str(alias)),
+        bson.Document([
+          #("from", bson.Str(from)),
+          #("localField", bson.Str(local_field)),
+          #("foreignField", bson.Str(foreign_field)),
+          #("as", bson.Str(alias)),
         ]),
       ),
     ]),
   )
 }
 
-pub fn project(pipeline: Pipeline, doc: value.Value) {
-  append_stage(pipeline, value.Document([#("$project", doc)]))
+pub fn pipelined_lookup(
+  pipeline: Pipeline,
+  from from: String,
+  define definitions: List(#(String, bson.Value)),
+  pipeline lookup_pipeline: List(bson.Value),
+  alias alias: String,
+) {
+  append_stage(
+    pipeline,
+    bson.Document([
+      #(
+        "$lookup",
+        bson.Document([
+          #("from", bson.Str(from)),
+          #("let", bson.Document(definitions)),
+          #("pipeline", bson.Array(lookup_pipeline)),
+          #("as", bson.Str(alias)),
+        ]),
+      ),
+    ]),
+  )
 }
 
-pub fn add_fields(pipeline: Pipeline, doc: value.Value) {
-  append_stage(pipeline, value.Document([#("$addFields", doc)]))
+pub fn unwind(
+  pipeline: Pipeline,
+  path: String,
+  preserve_null_and_empty_arrays: Bool,
+) {
+  append_stage(
+    pipeline,
+    bson.Document([
+      #(
+        "$unwind",
+        bson.Document([
+          #("path", bson.Str(path)),
+          #(
+            "preserveNullAndEmptyArrays",
+            bson.Boolean(preserve_null_and_empty_arrays),
+          ),
+        ]),
+      ),
+    ]),
+  )
 }
 
-pub fn sort(pipeline: Pipeline, doc: value.Value) {
-  append_stage(pipeline, value.Document([#("$sort", doc)]))
+pub fn unwind_with_index(
+  pipeline: Pipeline,
+  path: String,
+  index_field: String,
+  preserve_null_and_empty_arrays: Bool,
+) {
+  append_stage(
+    pipeline,
+    bson.Document([
+      #(
+        "$unwind",
+        bson.Document([
+          #("path", bson.Str(path)),
+          #("includeArrayIndex", bson.Str(index_field)),
+          #(
+            "preserveNullAndEmptyArrays",
+            bson.Boolean(preserve_null_and_empty_arrays),
+          ),
+        ]),
+      ),
+    ]),
+  )
 }
 
-pub fn group(pipeline: Pipeline, doc: value.Value) {
-  append_stage(pipeline, value.Document([#("$group", doc)]))
+pub fn project(pipeline: Pipeline, doc: bson.Value) {
+  append_stage(pipeline, bson.Document([#("$project", doc)]))
+}
+
+pub fn add_fields(pipeline: Pipeline, doc: bson.Value) {
+  append_stage(pipeline, bson.Document([#("$addFields", doc)]))
+}
+
+pub fn sort(pipeline: Pipeline, doc: bson.Value) {
+  append_stage(pipeline, bson.Document([#("$sort", doc)]))
+}
+
+pub fn group(pipeline: Pipeline, doc: bson.Value) {
+  append_stage(pipeline, bson.Document([#("$group", doc)]))
 }
 
 pub fn skip(pipeline: Pipeline, count: Int) {
-  append_stage(pipeline, value.Document([#("$skip", value.Int32(count))]))
+  append_stage(pipeline, bson.Document([#("$skip", bson.Int32(count))]))
 }
 
 pub fn limit(pipeline: Pipeline, count: Int) {
-  append_stage(pipeline, value.Document([#("$limit", value.Int32(count))]))
+  append_stage(pipeline, bson.Document([#("$limit", bson.Int32(count))]))
 }
 
-pub fn exec(pipeline: Pipeline) {
+pub fn to_cursor(pipeline: Pipeline) {
   let body =
     list.fold(
       pipeline.options,
       [
-        #("aggregate", value.Str(pipeline.collection.name)),
+        #("aggregate", bson.Str(pipeline.collection.name)),
         #(
           "pipeline",
           pipeline.stages
           |> queue.to_list
-          |> value.Array,
+          |> bson.Array,
         ),
-        #("cursor", value.Document([])),
+        #("cursor", bson.Document([])),
       ],
       fn(acc, opt) {
         case opt {
@@ -104,38 +176,29 @@ pub fn exec(pipeline: Pipeline) {
             list.key_set(
               acc,
               "cursor",
-              value.Document([#("batchSize", value.Int32(size))]),
+              bson.Document([#("batchSize", bson.Int32(size))]),
             )
-          Let(value.Document(let_doc)) ->
-            list.key_set(acc, "let", value.Document(let_doc))
+          Let(bson.Document(let_doc)) ->
+            list.key_set(acc, "let", bson.Document(let_doc))
         }
       },
     )
 
-  case client.execute(pipeline.collection, value.Document(body)) {
+  case client.execute(pipeline.collection, bson.Document(body)) {
     Ok(result) -> {
-      let [#("cursor", value.Document(result)), #("ok", ok)] = result
+      let [#("cursor", bson.Document(result)), #("ok", ok)] = result
       let [
-        #("firstBatch", value.Array(batch)),
-        #("id", value.Int64(id)),
+        #("firstBatch", bson.Array(batch)),
+        #("id", bson.Int64(id)),
         #("ns", _),
       ] = result
       case ok {
-        value.Double(1.0) ->
+        bson.Double(1.0) ->
           cursor.new(pipeline.collection, id, batch)
           |> Ok
         _ -> Error(default_error)
       }
     }
-    Error(#(code, msg)) -> Error(MongoError(code, msg, source: value.Null))
+    Error(#(code, msg)) -> Error(MongoError(code, msg, source: bson.Null))
   }
-}
-
-fn append_stage(pipeline: Pipeline, stage: value.Value) {
-  Pipeline(
-    collection: pipeline.collection,
-    options: pipeline.options,
-    stages: pipeline.stages
-    |> queue.push_back(stage),
-  )
 }

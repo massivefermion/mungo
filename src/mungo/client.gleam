@@ -7,7 +7,7 @@ import gleam/result
 import gleam/bit_string
 import mungo/tcp
 import mungo/scram
-import bison/value
+import bison/bson
 import bison.{decode, encode}
 
 pub opaque type ConnectionInfo {
@@ -55,25 +55,25 @@ pub fn collection(db: Database, name: String) -> Collection {
 pub fn get_more(collection: Collection, id: Int, batch_size: Int) {
   execute(
     collection,
-    value.Document([
-      #("getMore", value.Int64(id)),
-      #("collection", value.Str(collection.name)),
-      #("batchSize", value.Int32(batch_size)),
+    bson.Document([
+      #("getMore", bson.Int64(id)),
+      #("collection", bson.Str(collection.name)),
+      #("batchSize", bson.Int32(batch_size)),
     ]),
   )
 }
 
 pub fn execute(
   collection: Collection,
-  cmd: value.Value,
-) -> Result(List(#(String, value.Value)), #(Int, String)) {
+  cmd: bson.Value,
+) -> Result(List(#(String, bson.Value)), #(Int, String)) {
   case collection.db {
     Database(socket, name) ->
       case send_cmd(socket, name, cmd) {
         Ok([
-          #("ok", value.Double(0.0)),
-          #("errmsg", value.Str(msg)),
-          #("code", value.Int32(code)),
+          #("ok", bson.Double(0.0)),
+          #("errmsg", bson.Str(msg)),
+          #("code", bson.Int32(code)),
           #("codeName", _),
         ]) -> Error(#(code, msg))
         Ok(result) -> Ok(result)
@@ -109,7 +109,7 @@ fn authenticate(
   use reply <- result.then(send_cmd(socket, auth_source, second))
 
   case reply {
-    [#("ok", value.Double(0.0)), ..] -> Error(Nil)
+    [#("ok", bson.Double(0.0)), ..] -> Error(Nil)
     reply -> scram.parse_second_reply(reply, server_signature)
   }
 }
@@ -117,10 +117,10 @@ fn authenticate(
 fn send_cmd(
   socket: tcp.Socket,
   db: String,
-  cmd: value.Value,
-) -> Result(List(#(String, value.Value)), Nil) {
-  let assert value.Document(cmd) = cmd
-  let cmd = list.key_set(cmd, "$db", value.Str(db))
+  cmd: bson.Value,
+) -> Result(List(#(String, bson.Value)), Nil) {
+  let assert bson.Document(cmd) = cmd
+  let cmd = list.key_set(cmd, "$db", bson.Str(db))
   let encoded = encode(cmd)
   let size = bit_string.byte_size(encoded) + 21
 
