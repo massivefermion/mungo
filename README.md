@@ -51,13 +51,13 @@ pub fn main() {
       "mongodb://app-dev:" <> encoded_password <> "@localhost/app-db?authSource=admin",
     )
 
-    let users =
+  let users =
     db
-    |> collection("users")
+    |> mungo.collection("users")
 
   let _ =
     users
-    |> insert_many([
+    |> mungo.insert_many([
       [
         #("username", bson.Str("jmorrow")),
         #("name", bson.Str("vincent freeman")),
@@ -74,7 +74,7 @@ pub fn main() {
 
   let _ =
     users
-    |> update_one(
+    |> mungo.update_one(
       [#("username", bson.Str("real-jerome"))],
       [
         #(
@@ -90,24 +90,24 @@ pub fn main() {
 
   let assert Ok(yahoo_cursor) =
     users
-    |> find_many(
+    |> mungo.find_many(
       [#("email", bson.Regex(#("yahoo", "")))],
       [Sort(bson.Document([#("username", bson.Int32(-1))]))],
     )
-  let _yahoo_users = to_list(yahoo_cursor)
+  let _yahoo_users = mungo.to_list(yahoo_cursor)
 
   let assert Ok(underage_lindsey_cursor) =
     users
     |> aggregate([Let(bson.Document([#("minimum_age", bson.Int32(21))]))])
-    |> match(bson.Document([
+    |> match([
       #(
         "$expr",
         bson.Document([
           #("$lt", bson.Array([bson.Str("$age"), bson.Str("$$minimum_age")])),
         ]),
       ),
-    ]))
-    |> add_fields(bson.Document([
+    ])
+    |> add_fields([
       #(
         "first_name",
         bson.Document([
@@ -122,8 +122,8 @@ pub fn main() {
           ),
         ]),
       ),
-    ]))
-    |> match(bson.Document([#("first_name", bson.Str("lindsey"))]))
+    ])
+    |> match([#("first_name", bson.Str("lindsey"))])
     |> pipelined_lookup(
       from: "profiles",
       define: [#("user", bson.Str("$username"))],
