@@ -92,13 +92,13 @@ pub fn main() {
     users
     |> mungo.find_many(
       [#("email", bson.Regex(#("yahoo", "")))],
-      [Sort(bson.Document([#("username", bson.Int32(-1))]))],
+      [Sort([#("username", bson.Int32(-1))])],
     )
   let _yahoo_users = mungo.to_list(yahoo_cursor)
 
   let assert Ok(underage_lindsey_cursor) =
     users
-    |> aggregate([Let(bson.Document([#("minimum_age", bson.Int32(21))]))])
+    |> aggregate([Let([#("minimum_age", bson.Int32(21))])])
     |> match([
       #(
         "$expr",
@@ -128,7 +128,7 @@ pub fn main() {
       from: "profiles",
       define: [#("user", bson.Str("$username"))],
       pipeline: [
-        bson.Document([
+        [
           #(
             "$match",
             bson.Document([
@@ -143,7 +143,7 @@ pub fn main() {
               ),
             ]),
           ),
-        ]),
+        ],
       ],
       alias: "profile",
     )

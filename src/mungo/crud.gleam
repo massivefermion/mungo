@@ -11,13 +11,13 @@ pub type FindOption {
   Skip(Int)
   Limit(Int)
   BatchSize(Int)
-  Sort(bson.Value)
-  Projection(bson.Value)
+  Sort(List(#(String, bson.Value)))
+  Projection(List(#(String, bson.Value)))
 }
 
 pub type UpdateOption {
   Upsert
-  ArrayFilters(List(bson.Value))
+  ArrayFilters(List(List(#(String, bson.Value))))
 }
 
 pub type InsertResult {
@@ -43,7 +43,7 @@ pub fn find_by_id(collection, id) {
   case object_id.from_string(id) {
     Ok(id) ->
       collection
-      |> find_one([#("_id", bson.ObjectId(id))], bson.Document([]))
+      |> find_one([#("_id", bson.ObjectId(id))], [])
     Error(Nil) -> Error(utils.default_error)
   }
 }
@@ -231,9 +231,8 @@ fn find(
       [#("find", bson.Str(collection.name)), #("filter", bson.Document(filter))],
       fn(acc, opt) {
         case opt {
-          Sort(bson.Document(sort)) ->
-            list.key_set(acc, "sort", bson.Document(sort))
-          Projection(bson.Document(projection)) ->
+          Sort(sort) -> list.key_set(acc, "sort", bson.Document(sort))
+          Projection(projection) ->
             list.key_set(acc, "projection", bson.Document(projection))
           Skip(skip) -> list.key_set(acc, "skip", bson.Int32(skip))
           Limit(limit) -> list.key_set(acc, "limit", bson.Int32(limit))
@@ -279,7 +278,11 @@ fn update(
         case opt {
           Upsert -> list.key_set(acc, "upsert", bson.Boolean(True))
           ArrayFilters(filters) ->
-            list.key_set(acc, "arrayFilters", bson.Array(filters))
+            list.key_set(
+              acc,
+              "arrayFilters",
+              bson.Array(list.map(filters, bson.Document)),
+            )
         }
       },
     )

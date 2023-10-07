@@ -17,7 +17,7 @@ pub opaque type Pipeline {
 
 pub type AggregateOption {
   BatchSize(Int)
-  Let(bson.Value)
+  Let(List(#(String, bson.Value)))
 }
 
 pub fn aggregate(
@@ -40,6 +40,7 @@ pub fn match(pipeline: Pipeline, doc: List(#(String, bson.Value))) {
   append_stage(pipeline, #("$match", bson.Document(doc)))
 }
 
+/// for more information, see [here](https://www.mongodb.com/docs/manual/reference/operator/aggregation/lookup)
 pub fn lookup(
   pipeline: Pipeline,
   from from: String,
@@ -61,11 +62,12 @@ pub fn lookup(
   )
 }
 
+/// for more information, see [here](https://www.mongodb.com/docs/manual/reference/operator/aggregation/lookup)
 pub fn pipelined_lookup(
   pipeline: Pipeline,
   from from: String,
   define definitions: List(#(String, bson.Value)),
-  pipeline lookup_pipeline: List(bson.Value),
+  pipeline lookup_pipeline: List(List(#(String, bson.Value))),
   alias alias: String,
 ) {
   append_stage(
@@ -75,7 +77,7 @@ pub fn pipelined_lookup(
       bson.Document([
         #("from", bson.Str(from)),
         #("let", bson.Document(definitions)),
-        #("pipeline", bson.Array(lookup_pipeline)),
+        #("pipeline", bson.Array(list.map(lookup_pipeline, bson.Document))),
         #("as", bson.Str(alias)),
       ]),
     ),
@@ -170,8 +172,7 @@ pub fn to_cursor(pipeline: Pipeline) {
               "cursor",
               bson.Document([#("batchSize", bson.Int32(size))]),
             )
-          Let(bson.Document(let_doc)) ->
-            list.key_set(acc, "let", bson.Document(let_doc))
+          Let(let_doc) -> list.key_set(acc, "let", bson.Document(let_doc))
         }
       },
     )
