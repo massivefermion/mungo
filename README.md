@@ -1,3 +1,8 @@
+![bison](https://raw.githubusercontent.com/massivefermion/mungo/main/logo.png)
+
+[![Package Version](https://img.shields.io/hexpm/v/bison)](https://hex.pm/packages/mungo)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/mungo/)
+
 # mungo (formerly gleam_mongo)
 > mungo: a felted fabric made from the shredded fibre of repurposed woollen cloth
 ---

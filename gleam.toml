@@ -1,6 +1,6 @@
 name = "mungo"
 target = "erlang"
-version = "0.20.0"
+version = "0.20.1"
 
 description = "A MongoDB driver for Gleam (formerly gleam_mongo)"
 licences = ["Apache-2.0"]
