@@ -1,57 +1,88 @@
-import gleam/list
-import gleam/string
-import gleam/bit_string
+import gleam/int
+import gleam/order
+import gleam/result
+import gleam/option
+import gleam/bit_array
+import gleam/erlang/process
+import mug
 
-pub type Socket
-
-pub type TCPResult {
-  OK
+pub fn connect(host: String, port: Int, timeout: Int) {
+  mug.connect(mug.ConnectionOptions(host, port, timeout))
 }
 
-type TCPOption {
-  Binary
-  Active(Bool)
+pub fn execute(socket: mug.Socket, packet: BitArray, timeout: Int) {
+  let selector =
+    process.new_selector()
+    |> mug.selecting_tcp_messages(mapper)
+
+  use _ <- result.then(send(socket, packet))
+  internal_receive(socket, selector, now(), timeout, option.None, <<>>)
 }
 
-pub fn connect(host: String, port: Int) {
-  tcp_connect(
-    host
-    |> string.to_graphemes
-    |> list.map(fn(char) {
-      let <<code>> = bit_string.from_string(char)
-      code
-    }),
-    port,
-    [Binary, Active(False)],
-  )
+fn send(socket: mug.Socket, packet: BitArray) {
+  mug.send(socket, packet)
 }
 
-pub fn send(socket, data) {
-  tcp_send(socket, data)
+fn internal_receive(
+  socket,
+  selector,
+  start_time: #(Int, Int, Int),
+  timeout: Int,
+  remaining_size: option.Option(Int),
+  storage: BitArray,
+) -> Result(BitArray, mug.Error) {
+  mug.receive_next_packet_as_message(socket)
+
+  selector
+  |> process.select(timeout)
+  |> result.replace_error(mug.Timeout)
+  |> result.flatten
+  |> result.map(fn(packet) {
+    use remaining_size <- result.then(case remaining_size {
+      option.None ->
+        case bit_array.byte_size(packet) > 4 {
+          True -> {
+            let <<size:32-little, _:bits>> = packet
+            Ok(size - bit_array.byte_size(packet))
+          }
+          False -> Error(mug.Ebadmsg)
+        }
+      option.Some(remaining_size) ->
+        Ok(remaining_size - bit_array.byte_size(packet))
+    })
+
+    let storage = bit_array.append(storage, packet)
+    case diff(now(), start_time) >= timeout * 1000 {
+      True -> Error(mug.Timeout)
+      False ->
+        case int.compare(remaining_size, 0) {
+          order.Eq -> Ok(storage)
+          order.Lt -> Error(mug.Ebadmsg)
+          order.Gt ->
+            internal_receive(
+              socket,
+              selector,
+              start_time,
+              timeout,
+              option.Some(remaining_size),
+              storage,
+            )
+        }
+    }
+  })
+  |> result.flatten
 }
 
-pub fn receive(socket) {
-  case tcp_receive(socket, 4) {
-    Ok(<<size:32-little>>) ->
-      case tcp_receive(socket, size - 4) {
-        Ok(rest) ->
-          bit_string.append(<<size:32-little>>, rest)
-          |> Ok
-        Error(Nil) -> Error(Nil)
-      }
-    Error(Nil) -> Error(Nil)
+fn mapper(message: mug.TcpMessage) -> Result(BitArray, mug.Error) {
+  case message {
+    mug.Packet(_, packet) -> Ok(packet)
+    mug.SocketClosed(_) -> Error(mug.Closed)
+    mug.TcpError(_, error) -> Error(error)
   }
 }
 
-@external(erlang, "gen_tcp", "connect")
-fn tcp_connect(
-  host: List(Int),
-  port: Int,
-  ops: List(TCPOption),
-) -> Result(Socket, Nil)
+@external(erlang, "erlang", "now")
+fn now() -> #(Int, Int, Int)
 
-@external(erlang, "gen_tcp", "send")
-fn tcp_send(socket: Socket, data: BitString) -> TCPResult
-
-@external(erlang, "gen_tcp", "recv")
-fn tcp_receive(socket: Socket, length: Int) -> Result(BitString, Nil)
+@external(erlang, "timer", "now_diff")
+fn diff(end: #(Int, Int, Int), start: #(Int, Int, Int)) -> Int

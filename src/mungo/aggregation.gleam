@@ -2,10 +2,12 @@
 
 import gleam/list
 import gleam/queue
+import gleam/result
 import mungo/client
 import mungo/cursor
-import mungo/utils.{MongoError, default_error}
+import mungo/error
 import bison/bson
+import gleam/erlang/process
 
 pub opaque type Pipeline {
   Pipeline(
@@ -177,21 +179,27 @@ pub fn to_cursor(pipeline: Pipeline) {
       },
     )
 
-  case client.execute(pipeline.collection, bson.Document(body)) {
-    Ok(result) -> {
-      let [#("cursor", bson.Document(result)), #("ok", ok)] = result
-      let [
-        #("firstBatch", bson.Array(batch)),
-        #("id", bson.Int64(id)),
-        #("ns", _),
-      ] = result
-      case ok {
-        bson.Double(1.0) ->
-          cursor.new(pipeline.collection, id, batch)
-          |> Ok
-        _ -> Error(default_error)
-      }
+  process.try_call(
+    pipeline.collection.client,
+    client.Command(body, _),
+    pipeline.collection.timeout,
+  )
+  |> result.replace_error(error.ActorError)
+  |> result.flatten
+  |> result.map(fn(reply) {
+    case list.key_find(reply, "cursor") {
+      Ok(bson.Document(cursor)) ->
+        case
+          [list.key_find(cursor, "id"), list.key_find(cursor, "firstBatch")]
+        {
+          [Ok(bson.Int64(id)), Ok(bson.Array(batch))] ->
+            cursor.new(pipeline.collection, id, batch)
+            |> Ok
+
+          _ -> Error(error.StructureError)
+        }
+      _ -> Error(error.StructureError)
     }
-    Error(#(code, msg)) -> Error(MongoError(code, msg, source: bson.Null))
-  }
+  })
+  |> result.flatten
 }

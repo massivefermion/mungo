@@ -1,4 +1,4 @@
-![mungo](https://raw.githubusercontent.com/massivefermion/mungo/main/logo.png)
+![mungo](https://raw.githubusercontent.com/massivefermion/mungo/main/banner.png)
 
 [![Package Version](https://img.shields.io/hexpm/v/mungo)](https://hex.pm/packages/mungo)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/mungo/)
@@ -10,19 +10,19 @@
 
 A mongodb driver for gleam
 
-## Quick start
+## <img width=32 src=https://raw.githubusercontent.com/massivefermion/mungo/main/icon.png> Quick start
 
 ```sh
 gleam shell # Run an Erlang shell
 ```
 
-## Installation
+## <img width=32 src=https://raw.githubusercontent.com/massivefermion/mungo/main/icon.png> Installation
 
 ```sh
 gleam add mungo
 ```
 
-## Roadmap
+## <img width=32 src=https://raw.githubusercontent.com/massivefermion/mungo/main/icon.png> Roadmap
 
 - [x] support basic mongodb commands
 - [x] support aggregation
@@ -30,14 +30,14 @@ gleam add mungo
 - [x] support authentication
 - [x] support mongodb cursors
 - [ ] support connection pooling
-- [ ] support tls
-- [ ] support clusters
 - [ ] support bulk operations
+- [ ] support clusters
+- [ ] support tls
 - [ ] support transactions
 - [ ] support change streams
 - [ ] support other mongodb commands
 
-## Usage
+## <img width=32 src=https://raw.githubusercontent.com/massivefermion/mungo/main/icon.png> Usage
 
 ```gleam
 import gleam/uri
@@ -50,14 +50,14 @@ import mungo/aggregation.{
 import bison/bson
 
 pub fn main() {
-  let encoded_password = uri.percent_encode("strong password")
-  let assert Ok(db) =
-    mungo.connect(
-      "mongodb://app-dev:" <> encoded_password <> "@localhost/app-db?authSource=admin",
+  let assert Ok(client) =
+    mungo.start(
+      "mongodb://app-dev:passwd@localhost/app-db?authSource=admin",
+      1024
     )
 
-  let users =
-    db
+  let assert Ok(users) =
+    client
     |> mungo.collection("users")
 
   let _ =

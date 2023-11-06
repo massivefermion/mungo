@@ -1,11 +1,13 @@
 import gleam/list
 import gleam/pair
 import gleam/option
-import mungo/utils
+import gleam/result
+import mungo/error
 import mungo/cursor
 import mungo/client
 import bison/bson
 import bison/object_id
+import gleam/erlang/process
 
 pub type FindOption {
   Skip(Int)
@@ -25,8 +27,7 @@ pub type InsertResult {
 }
 
 pub type UpdateResult {
-  UpdateResult(matched: Int, modified: Int)
-  UpsertResult(matched: Int, upserted_id: bson.Value)
+  UpdateResult(matched: Int, modified: Int, upserted: List(bson.Value))
 }
 
 pub fn insert_one(collection, doc) {
@@ -40,31 +41,30 @@ pub fn insert_one(collection, doc) {
 }
 
 pub fn find_by_id(collection, id) {
-  case object_id.from_string(id) {
-    Ok(id) ->
-      collection
-      |> find_one([#("_id", bson.ObjectId(id))], [])
-    Error(Nil) -> Error(utils.default_error)
-  }
+  object_id.from_string(id)
+  |> result.map(fn(id) {
+    collection
+    |> find_one([#("_id", bson.ObjectId(id))], [])
+  })
+  |> result.replace_error(error.StructureError)
+  |> result.flatten
 }
 
 pub fn find_one(collection, filter, projection) {
-  case
-    collection
-    |> find_many(filter, [Limit(1), Projection(projection)])
-  {
-    Ok(cursor) ->
-      case cursor.next(cursor) {
-        #(option.Some(doc), _) ->
-          doc
-          |> option.Some
-          |> Ok
-        #(option.None, _) ->
-          option.None
-          |> Ok
-      }
-    Error(error) -> Error(error)
-  }
+  collection
+  |> find_many(filter, [Limit(1), Projection(projection)])
+  |> result.map(fn(cursor) {
+    case cursor.next(cursor) {
+      #(option.Some(doc), _) ->
+        doc
+        |> option.Some
+        |> Ok
+      #(option.None, _) ->
+        option.None
+        |> Ok
+    }
+  })
+  |> result.flatten
 }
 
 pub fn find_many(
@@ -120,40 +120,49 @@ pub fn delete_many(
 }
 
 pub fn count_all(collection: client.Collection) {
-  case
-    collection
-    |> client.execute(bson.Document([#("count", bson.Str(collection.name))]))
-  {
-    Ok([#("n", bson.Int32(n)), #("ok", ok)]) ->
-      case ok {
-        bson.Double(1.0) -> Ok(n)
-        _ -> Error(utils.default_error)
-      }
-    Error(#(code, msg)) -> Error(utils.MongoError(code, msg, source: bson.Null))
-  }
+  let cmd = [#("count", bson.Str(collection.name))]
+  process.try_call(
+    collection.client,
+    client.Command(cmd, _),
+    collection.timeout,
+  )
+  |> result.replace_error(error.ActorError)
+  |> result.flatten
+  |> result.map(fn(reply) {
+    case list.key_find(reply, "n") {
+      Ok(bson.Int32(n)) -> Ok(n)
+      _ -> Error(error.StructureError)
+    }
+  })
+  |> result.flatten
 }
 
 pub fn count(collection: client.Collection, filter: List(#(String, bson.Value))) {
-  case
-    collection
-    |> client.execute(bson.Document([
-      #("count", bson.Str(collection.name)),
-      #("query", bson.Document(filter)),
-    ]))
-  {
-    Ok([#("n", bson.Int32(n)), #("ok", ok)]) ->
-      case ok {
-        bson.Double(1.0) -> Ok(n)
-        _ -> Error(utils.default_error)
-      }
-    Error(#(code, msg)) -> Error(utils.MongoError(code, msg, source: bson.Null))
-  }
+  let cmd = [
+    #("count", bson.Str(collection.name)),
+    #("query", bson.Document(filter)),
+  ]
+
+  process.try_call(
+    collection.client,
+    client.Command(cmd, _),
+    collection.timeout,
+  )
+  |> result.replace_error(error.ActorError)
+  |> result.flatten
+  |> result.map(fn(reply) {
+    case list.key_find(reply, "n") {
+      Ok(bson.Int32(n)) -> Ok(n)
+      Error(Nil) -> Error(error.StructureError)
+    }
+  })
+  |> result.flatten
 }
 
 pub fn insert_many(
   collection: client.Collection,
   docs: List(List(#(String, bson.Value))),
-) -> Result(InsertResult, utils.MongoError) {
+) -> Result(InsertResult, error.Error) {
   let docs =
     list.map(
       docs,
@@ -185,39 +194,38 @@ pub fn insert_many(
       },
     )
 
-  case
-    collection
-    |> client.execute(bson.Document([
-      #("insert", bson.Str(collection.name)),
-      #("documents", bson.Array(docs)),
-    ]))
-  {
-    Ok([#("n", bson.Int32(n)), #("ok", ok)]) ->
-      case ok {
-        bson.Double(1.0) -> Ok(InsertResult(n, inserted_ids))
-        _ -> Error(utils.default_error)
-      }
+  let cmd = [
+    #("insert", bson.Str(collection.name)),
+    #("documents", bson.Array(docs)),
+  ]
 
-    Ok([#("n", _), #("writeErrors", bson.Array(errors)), #("ok", ok)]) ->
-      case ok {
-        bson.Double(1.0) -> {
-          let assert Ok(error) = list.first(errors)
-          case error {
-            bson.Document([
+  process.try_call(
+    collection.client,
+    client.Command(cmd, _),
+    collection.timeout,
+  )
+  |> result.replace_error(error.ActorError)
+  |> result.flatten
+  |> result.map(fn(reply) {
+    case [list.key_find(reply, "n"), list.key_find(reply, "writeErrors")] {
+      [_, Ok(bson.Array(errors))] ->
+        Error(error.WriteErrors(
+          errors
+          |> list.map(fn(error) {
+            let assert bson.Document([
               #("index", _),
               #("code", bson.Int32(code)),
               #("keyPattern", _),
               #("keyValue", source),
               #("errmsg", bson.Str(msg)),
-            ]) -> Error(utils.MongoError(code, msg, source))
-            _ -> Error(utils.default_error)
-          }
-        }
-
-        _ -> Error(utils.default_error)
-      }
-    Error(#(code, msg)) -> Error(utils.MongoError(code, msg, source: bson.Null))
-  }
+            ]) = error
+            error.WriteError(code, msg, source)
+          }),
+        ))
+      [Ok(bson.Int32(n)), _] -> Ok(InsertResult(n, inserted_ids))
+    }
+  })
+  |> result.flatten
 }
 
 fn find(
@@ -240,23 +248,30 @@ fn find(
         }
       },
     )
-  case
-    collection
-    |> client.execute(bson.Document(body))
-  {
-    Ok(result) -> {
-      let [#("cursor", bson.Document(result)), #("ok", ok)] = result
-      let assert Ok(bson.Int64(id)) = list.key_find(result, "id")
-      let assert Ok(bson.Array(batch)) = list.key_find(result, "firstBatch")
-      case ok {
-        bson.Double(1.0) ->
-          cursor.new(collection, id, batch)
-          |> Ok
-        _ -> Error(utils.default_error)
-      }
+
+  process.try_call(
+    collection.client,
+    client.Command(body, _),
+    collection.timeout,
+  )
+  |> result.replace_error(error.ActorError)
+  |> result.flatten
+  |> result.map(fn(reply) {
+    case list.key_find(reply, "cursor") {
+      Ok(bson.Document(cursor)) ->
+        case
+          [list.key_find(cursor, "id"), list.key_find(cursor, "firstBatch")]
+        {
+          [Ok(bson.Int64(id)), Ok(bson.Array(batch))] ->
+            cursor.new(collection, id, batch)
+            |> Ok
+
+          _ -> Error(error.StructureError)
+        }
+      _ -> Error(error.StructureError)
     }
-    Error(#(code, msg)) -> Error(utils.MongoError(code, msg, source: bson.Null))
-  }
+  })
+  |> result.flatten
 }
 
 fn update(
@@ -287,59 +302,52 @@ fn update(
       },
     )
     |> bson.Document
-  case
-    collection
-    |> client.execute(bson.Document([
-      #("update", bson.Str(collection.name)),
-      #("updates", bson.Array([update])),
-    ]))
-  {
-    Ok([
-      #("n", bson.Int32(n)),
-      #("nModified", bson.Int32(modified)),
-      #("ok", ok),
-    ]) ->
-      case ok {
-        bson.Double(1.0) -> Ok(UpdateResult(n, modified))
-        _ -> Error(utils.default_error)
-      }
-    Ok([
-      #("n", bson.Int32(n)),
-      #(
-        "upserted",
-        bson.Array([bson.Document([#("index", _), #("_id", upserted)])]),
-      ),
-      #("nModified", _),
-      #("ok", ok),
-    ]) ->
-      case ok {
-        bson.Double(1.0) -> Ok(UpsertResult(n, upserted))
-        _ -> Error(utils.default_error)
-      }
-    Ok([
-      #("n", _),
-      #("writeErrors", bson.Array(errors)),
-      #("nModified", _),
-      #("ok", ok),
-    ]) ->
-      case ok {
-        bson.Double(1.0) -> {
-          let assert Ok(error) = list.first(errors)
-          case error {
-            bson.Document([
+  let cmd = [
+    #("update", bson.Str(collection.name)),
+    #("updates", bson.Array([update])),
+  ]
+
+  process.try_call(
+    collection.client,
+    client.Command(cmd, _),
+    collection.timeout,
+  )
+  |> result.replace_error(error.ActorError)
+  |> result.flatten
+  |> result.map(fn(reply) {
+    case
+      [
+        list.key_find(reply, "n"),
+        list.key_find(reply, "nModified"),
+        list.key_find(reply, "upserted"),
+        list.key_find(reply, "writeErrors"),
+      ]
+    {
+      [Ok(bson.Int32(n)), Ok(bson.Int32(modified)), Ok(bson.Array(upserted)), _] ->
+        Ok(UpdateResult(n, modified, upserted))
+
+      [Ok(bson.Int32(n)), Ok(bson.Int32(modified))] ->
+        Ok(UpdateResult(n, modified, []))
+
+      [_, _, _, Ok(bson.Array(errors))] ->
+        Error(error.WriteErrors(
+          errors
+          |> list.map(fn(error) {
+            let assert bson.Document([
               #("index", _),
               #("code", bson.Int32(code)),
               #("keyPattern", _),
               #("keyValue", source),
               #("errmsg", bson.Str(msg)),
-            ]) -> Error(utils.MongoError(code, msg, source))
-            _ -> Error(utils.default_error)
-          }
-        }
-        _ -> Error(utils.default_error)
-      }
-    Error(#(code, msg)) -> Error(utils.MongoError(code, msg, source: bson.Null))
-  }
+            ]) = error
+            error.WriteError(code, msg, source)
+          }),
+        ))
+
+      _ -> Error(error.StructureError)
+    }
+  })
+  |> result.flatten
 }
 
 fn delete(
@@ -347,49 +355,51 @@ fn delete(
   filter: List(#(String, bson.Value)),
   multi: Bool,
 ) {
-  case
-    collection
-    |> client.execute(bson.Document([
-      #("delete", bson.Str(collection.name)),
-      #(
-        "deletes",
-        bson.Array([
-          bson.Document([
-            #("q", bson.Document(filter)),
-            #(
-              "limit",
-              bson.Int32(case multi {
-                True -> 0
-                False -> 1
-              }),
-            ),
-          ]),
+  let cmd = [
+    #("delete", bson.Str(collection.name)),
+    #(
+      "deletes",
+      bson.Array([
+        bson.Document([
+          #("q", bson.Document(filter)),
+          #(
+            "limit",
+            bson.Int32(case multi {
+              True -> 0
+              False -> 1
+            }),
+          ),
         ]),
-      ),
-    ]))
-  {
-    Ok([#("n", bson.Int32(n)), #("ok", ok)]) ->
-      case ok {
-        bson.Double(1.0) -> Ok(n)
-        _ -> Error(utils.default_error)
-      }
-    Ok([#("n", _), #("writeErrors", bson.Array(errors)), #("ok", ok)]) ->
-      case ok {
-        bson.Double(1.0) -> {
-          let assert Ok(error) = list.first(errors)
-          case error {
-            bson.Document([
+      ]),
+    ),
+  ]
+
+  process.try_call(
+    collection.client,
+    client.Command(cmd, _),
+    collection.timeout,
+  )
+  |> result.replace_error(error.ActorError)
+  |> result.flatten
+  |> result.map(fn(reply) {
+    case [list.key_find(reply, "n"), list.key_find(reply, "writeErrors")] {
+      [Ok(bson.Int32(n)), _] -> Ok(n)
+      [_, Ok(bson.Array(errors))] ->
+        Error(error.WriteErrors(
+          errors
+          |> list.map(fn(error) {
+            let assert bson.Document([
               #("index", _),
               #("code", bson.Int32(code)),
               #("keyPattern", _),
               #("keyValue", source),
               #("errmsg", bson.Str(msg)),
-            ]) -> Error(utils.MongoError(code, msg, source))
-            _ -> Error(utils.default_error)
-          }
-        }
-        _ -> Error(utils.default_error)
-      }
-    Error(#(code, msg)) -> Error(utils.MongoError(code, msg, source: bson.Null))
-  }
+            ]) = error
+            error.WriteError(code, msg, source)
+          }),
+        ))
+      _ -> Error(error.StructureError)
+    }
+  })
+  |> result.flatten
 }

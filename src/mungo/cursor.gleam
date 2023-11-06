@@ -1,9 +1,11 @@
 import gleam/list
 import gleam/option
+import gleam/result
 import gleam/iterator
-import mungo/utils
+import mungo/error
 import mungo/client
 import bison/bson
+import gleam/erlang/process
 
 pub opaque type Cursor {
   Cursor(
@@ -69,19 +71,37 @@ fn to_list_internal(cursor, storage) {
   }
 }
 
-fn get_more(cursor: Cursor) -> Result(Cursor, utils.MongoError) {
-  case client.get_more(cursor.collection, cursor.id, cursor.batch_size) {
-    Ok(result) -> {
-      let [#("cursor", bson.Document(result)), #("ok", ok)] = result
-      let assert Ok(bson.Int64(id)) = list.key_find(result, "id")
-      let assert Ok(bson.Array(batch)) = list.key_find(result, "nextBatch")
-      case ok {
-        bson.Double(1.0) ->
-          new(cursor.collection, id, batch)
-          |> Ok
-        _ -> Error(utils.default_error)
-      }
+fn get_more(cursor: Cursor) -> Result(Cursor, error.Error) {
+  let cmd = [
+    #("getMore", bson.Int64(cursor.id)),
+    #("collection", bson.Str(cursor.collection.name)),
+    #("batchSize", bson.Int32(cursor.batch_size)),
+  ]
+
+  process.try_call(
+    cursor.collection.client,
+    client.Command(cmd, _),
+    cursor.collection.timeout,
+  )
+  |> result.replace_error(error.ActorError)
+  |> result.flatten
+  |> result.map(fn(reply) {
+    case list.key_find(reply, "cursor") {
+      Ok(bson.Document(reply_cursor)) ->
+        case
+          [
+            list.key_find(reply_cursor, "id"),
+            list.key_find(reply_cursor, "nextBatch"),
+          ]
+        {
+          [Ok(bson.Int64(id)), Ok(bson.Array(batch))] ->
+            new(cursor.collection, id, batch)
+            |> Ok
+
+          _ -> Error(error.StructureError)
+        }
+      _ -> Error(error.StructureError)
     }
-    Error(#(code, msg)) -> Error(utils.MongoError(code, msg, source: bson.Null))
-  }
+  })
+  |> result.flatten
 }

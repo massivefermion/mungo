@@ -1,9 +1,9 @@
 import mungo/crud
-import mungo/client
 import mungo/cursor
+import mungo/client
 
-pub fn connect(uri) {
-  client.connect(uri)
+pub fn start(uri, timeout) {
+  client.start(uri, timeout)
 }
 
 pub fn next(cursor) {
