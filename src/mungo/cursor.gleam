@@ -16,11 +16,11 @@ pub opaque type Cursor {
   )
 }
 
-pub fn to_list(cursor: Cursor) {
-  to_list_internal(cursor, [])
+pub fn to_list(cursor: Cursor, timeout: Int) {
+  to_list_internal(cursor, [], timeout)
 }
 
-pub fn next(cursor: Cursor) {
+pub fn next(cursor: Cursor, timeout: Int) {
   case iterator.step(cursor.iterator) {
     iterator.Next(doc, rest) -> #(
       option.Some(doc),
@@ -33,7 +33,7 @@ pub fn next(cursor: Cursor) {
           Cursor(cursor.collection, 0, cursor.batch_size, iterator.empty()),
         )
         _ -> {
-          let assert Ok(new_cursor) = get_more(cursor)
+          let assert Ok(new_cursor) = get_more(cursor, timeout)
           case iterator.step(new_cursor.iterator) {
             iterator.Next(doc, rest) -> #(
               option.Some(doc),
@@ -63,26 +63,22 @@ pub fn new(collection: client.Collection, id: Int, batch: List(bson.Value)) {
   Cursor(collection, id, list.length(batch), iterator.from_list(batch))
 }
 
-fn to_list_internal(cursor, storage) {
-  case next(cursor) {
+fn to_list_internal(cursor, storage, timeout) {
+  case next(cursor, timeout) {
     #(option.Some(next), new_cursor) ->
-      to_list_internal(new_cursor, list.append(storage, [next]))
+      to_list_internal(new_cursor, list.append(storage, [next]), timeout)
     #(option.None, _) -> storage
   }
 }
 
-fn get_more(cursor: Cursor) -> Result(Cursor, error.Error) {
+fn get_more(cursor: Cursor, timeout: Int) -> Result(Cursor, error.Error) {
   let cmd = [
     #("getMore", bson.Int64(cursor.id)),
     #("collection", bson.Str(cursor.collection.name)),
     #("batchSize", bson.Int32(cursor.batch_size)),
   ]
 
-  process.try_call(
-    cursor.collection.client,
-    client.Command(cmd, _),
-    cursor.collection.timeout,
-  )
+  process.try_call(cursor.collection.client, client.Command(cmd, _), timeout)
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {

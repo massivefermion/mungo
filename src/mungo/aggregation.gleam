@@ -13,6 +13,7 @@ pub opaque type Pipeline {
   Pipeline(
     collection: client.Collection,
     options: List(AggregateOption),
+    timeout: Int,
     stages: queue.Queue(bson.Value),
   )
 }
@@ -25,14 +26,16 @@ pub type AggregateOption {
 pub fn aggregate(
   collection: client.Collection,
   options: List(AggregateOption),
+  timeout: Int,
 ) -> Pipeline {
-  Pipeline(collection, options, stages: queue.new())
+  Pipeline(collection, options, timeout, stages: queue.new())
 }
 
 pub fn append_stage(pipeline: Pipeline, stage: #(String, bson.Value)) {
   Pipeline(
     collection: pipeline.collection,
     options: pipeline.options,
+    timeout: pipeline.timeout,
     stages: pipeline.stages
     |> queue.push_back(bson.Document([stage])),
   )
@@ -175,6 +178,7 @@ pub fn to_cursor(pipeline: Pipeline) {
               bson.Document([#("batchSize", bson.Int32(size))]),
             )
           Let(let_doc) -> list.key_set(acc, "let", bson.Document(let_doc))
+          _ -> acc
         }
       },
     )
@@ -182,7 +186,7 @@ pub fn to_cursor(pipeline: Pipeline) {
   process.try_call(
     pipeline.collection.client,
     client.Command(body, _),
-    pipeline.collection.timeout,
+    pipeline.timeout,
   )
   |> result.replace_error(error.ActorError)
   |> result.flatten

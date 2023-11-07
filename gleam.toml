@@ -1,6 +1,6 @@
 name = "mungo"
 target = "erlang"
-version = "0.21.0"
+version = "0.22.0"
 
 description = "A MongoDB driver for Gleam (formerly gleam_mongo)"
 gleam = ">= 0.32.0"
@@ -22,10 +22,10 @@ internal_modules = [
 [dependencies]
 bison = "~> 0.29"
 gleam_crypto = "~> 0.5"
-gleam_erlang = "~> 0.22"
-gleam_otp = "~> 0.7"
+gleam_erlang = "~> 0.23"
+gleam_otp = "~> 0.8"
 gleam_stdlib = "~> 0.32"
-mug = "~> 0.1"
+mug = "~> 0.2"
 
 [dev-dependencies]
 gleeunit = "~> 1.0"

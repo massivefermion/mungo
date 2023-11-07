@@ -85,7 +85,7 @@ pub opaque type Client {
 }
 
 pub type Collection {
-  Collection(name: String, client: process.Subject(Message), timeout: Int)
+  Collection(name: String, client: process.Subject(Message))
 }
 
 fn connect(uri: String, timeout: Int) -> Result(Client, error.Error) {
@@ -120,13 +120,8 @@ fn connect(uri: String, timeout: Int) -> Result(Client, error.Error) {
   }
 }
 
-pub fn collection(
-  client: process.Subject(Message),
-  name: String,
-) -> Result(Collection, process.CallError(msg)) {
-  process.try_call(client, GetTimeout, 1024)
-  |> result.map(fn(timeout) { Collection(name, client, timeout) })
-  |> result.replace_error(process.CallTimeout)
+pub fn collection(client: process.Subject(Message), name: String) -> Collection {
+  Collection(name, client)
 }
 
 fn execute(
@@ -299,18 +294,6 @@ fn send_cmd(
   })
   |> result.map_error(fn(tcp_error) { error.TCPError(tcp_error) })
   |> result.flatten
-  // |> result.map(fn(_) {
-  //   tcp.receive(socket, timeout)
-  //   |> result.map(fn(reply) {
-  //     let <<_:168, rest:bits>> = reply
-  //     decode(rest)
-  //     |> result.replace_error(error.StructureError)
-  //   })
-  //   |> result.map_error(fn(tcp_error) { error.TCPError(tcp_error) })
-  //   |> result.flatten
-  // })
-  // |> result.map_error(fn(tcp_error) { error.TCPError(tcp_error) })
-  // |> result.flatten
 }
 
 fn parse_connection_string(uri: String) {

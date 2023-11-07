@@ -30,31 +30,31 @@ pub type UpdateResult {
   UpdateResult(matched: Int, modified: Int, upserted: List(bson.Value))
 }
 
-pub fn insert_one(collection, doc) {
+pub fn insert_one(collection, doc, timeout) {
   case
     collection
-    |> insert_many([doc])
+    |> insert_many([doc], timeout)
   {
     Ok(InsertResult(inserted: _, inserted_ids: [id])) -> Ok(id)
     Error(error) -> Error(error)
   }
 }
 
-pub fn find_by_id(collection, id) {
+pub fn find_by_id(collection, id, timeout) {
   object_id.from_string(id)
   |> result.map(fn(id) {
     collection
-    |> find_one([#("_id", bson.ObjectId(id))], [])
+    |> find_one([#("_id", bson.ObjectId(id))], [], timeout)
   })
   |> result.replace_error(error.StructureError)
   |> result.flatten
 }
 
-pub fn find_one(collection, filter, projection) {
+pub fn find_one(collection, filter, projection, timeout: Int) {
   collection
-  |> find_many(filter, [Limit(1), Projection(projection)])
+  |> find_many(filter, [Limit(1), Projection(projection)], timeout)
   |> result.map(fn(cursor) {
-    case cursor.next(cursor) {
+    case cursor.next(cursor, timeout) {
       #(option.Some(doc), _) ->
         doc
         |> option.Some
@@ -71,14 +71,19 @@ pub fn find_many(
   collection: client.Collection,
   filter: List(#(String, bson.Value)),
   options: List(FindOption),
+  timeout: Int,
 ) {
   collection
-  |> find(filter, options)
+  |> find(filter, options, timeout)
 }
 
-pub fn find_all(collection: client.Collection, options: List(FindOption)) {
+pub fn find_all(
+  collection: client.Collection,
+  options: List(FindOption),
+  timeout: Int,
+) {
   collection
-  |> find([], options)
+  |> find([], options, timeout)
 }
 
 /// for more information, see [here](https://www.mongodb.com/docs/manual/reference/operator/update)
@@ -87,9 +92,10 @@ pub fn update_one(
   filter: List(#(String, bson.Value)),
   change: List(#(String, bson.Value)),
   options: List(UpdateOption),
+  timeout: Int,
 ) {
   collection
-  |> update(filter, change, options, False)
+  |> update(filter, change, options, False, timeout)
 }
 
 /// for more information, see [here](https://www.mongodb.com/docs/manual/reference/operator/update)
@@ -98,34 +104,33 @@ pub fn update_many(
   filter: List(#(String, bson.Value)),
   change: List(#(String, bson.Value)),
   options: List(UpdateOption),
+  timeout: Int,
 ) {
   collection
-  |> update(filter, change, options, True)
+  |> update(filter, change, options, True, timeout)
 }
 
 pub fn delete_one(
   collection: client.Collection,
   filter: List(#(String, bson.Value)),
+  timeout: Int,
 ) {
   collection
-  |> delete(filter, False)
+  |> delete(filter, False, timeout)
 }
 
 pub fn delete_many(
   collection: client.Collection,
   filter: List(#(String, bson.Value)),
+  timeout: Int,
 ) {
   collection
-  |> delete(filter, True)
+  |> delete(filter, True, timeout)
 }
 
-pub fn count_all(collection: client.Collection) {
+pub fn count_all(collection: client.Collection, timeout: Int) {
   let cmd = [#("count", bson.Str(collection.name))]
-  process.try_call(
-    collection.client,
-    client.Command(cmd, _),
-    collection.timeout,
-  )
+  process.try_call(collection.client, client.Command(cmd, _), timeout)
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
@@ -137,17 +142,17 @@ pub fn count_all(collection: client.Collection) {
   |> result.flatten
 }
 
-pub fn count(collection: client.Collection, filter: List(#(String, bson.Value))) {
+pub fn count(
+  collection: client.Collection,
+  filter: List(#(String, bson.Value)),
+  timeout: Int,
+) {
   let cmd = [
     #("count", bson.Str(collection.name)),
     #("query", bson.Document(filter)),
   ]
 
-  process.try_call(
-    collection.client,
-    client.Command(cmd, _),
-    collection.timeout,
-  )
+  process.try_call(collection.client, client.Command(cmd, _), timeout)
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
@@ -162,6 +167,7 @@ pub fn count(collection: client.Collection, filter: List(#(String, bson.Value)))
 pub fn insert_many(
   collection: client.Collection,
   docs: List(List(#(String, bson.Value))),
+  timeout: Int,
 ) -> Result(InsertResult, error.Error) {
   let docs =
     list.map(
@@ -199,11 +205,7 @@ pub fn insert_many(
     #("documents", bson.Array(docs)),
   ]
 
-  process.try_call(
-    collection.client,
-    client.Command(cmd, _),
-    collection.timeout,
-  )
+  process.try_call(collection.client, client.Command(cmd, _), timeout)
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
@@ -232,6 +234,7 @@ fn find(
   collection: client.Collection,
   filter: List(#(String, bson.Value)),
   options: List(FindOption),
+  timeout: Int,
 ) {
   let body =
     list.fold(
@@ -249,11 +252,7 @@ fn find(
       },
     )
 
-  process.try_call(
-    collection.client,
-    client.Command(body, _),
-    collection.timeout,
-  )
+  process.try_call(collection.client, client.Command(body, _), timeout)
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
@@ -280,6 +279,7 @@ fn update(
   change: List(#(String, bson.Value)),
   options: List(UpdateOption),
   multi: Bool,
+  timeout: Int,
 ) {
   let update =
     list.fold(
@@ -307,11 +307,7 @@ fn update(
     #("updates", bson.Array([update])),
   ]
 
-  process.try_call(
-    collection.client,
-    client.Command(cmd, _),
-    collection.timeout,
-  )
+  process.try_call(collection.client, client.Command(cmd, _), timeout)
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
@@ -354,6 +350,7 @@ fn delete(
   collection: client.Collection,
   filter: List(#(String, bson.Value)),
   multi: Bool,
+  timeout: Int,
 ) {
   let cmd = [
     #("delete", bson.Str(collection.name)),
@@ -374,11 +371,7 @@ fn delete(
     ),
   ]
 
-  process.try_call(
-    collection.client,
-    client.Command(cmd, _),
-    collection.timeout,
-  )
+  process.try_call(collection.client, client.Command(cmd, _), timeout)
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {

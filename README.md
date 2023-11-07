@@ -40,7 +40,6 @@ gleam add mungo
 ## <img width=32 src=https://raw.githubusercontent.com/massivefermion/mungo/main/icon.png> Usage
 
 ```gleam
-import gleam/uri
 import gleam/option
 import mungo
 import mungo/crud.{Sort, Upsert}
@@ -53,29 +52,32 @@ pub fn main() {
   let assert Ok(client) =
     mungo.start(
       "mongodb://app-dev:passwd@localhost/app-db?authSource=admin",
-      1024
+      512,
     )
 
-  let assert Ok(users) =
+  let users =
     client
     |> mungo.collection("users")
 
   let _ =
     users
-    |> mungo.insert_many([
+    |> mungo.insert_many(
       [
-        #("username", bson.Str("jmorrow")),
-        #("name", bson.Str("vincent freeman")),
-        #("email", bson.Str("jmorrow@gattaca.eu")),
-        #("age", bson.Int32(32)),
+        [
+          #("username", bson.Str("jmorrow")),
+          #("name", bson.Str("vincent freeman")),
+          #("email", bson.Str("jmorrow@gattaca.eu")),
+          #("age", bson.Int32(32)),
+        ],
+        [
+          #("username", bson.Str("real-jerome")),
+          #("name", bson.Str("jerome eugene morrow")),
+          #("email", bson.Str("real-jerome@running.at")),
+          #("age", bson.Int32(32)),
+        ],
       ],
-      [
-        #("username", bson.Str("real-jerome")),
-        #("name", bson.Str("jerome eugene morrow")),
-        #("email", bson.Str("real-jerome@running.at")),
-        #("age", bson.Int32(32)),
-      ],
-    ])
+      128,
+    )
 
   let _ =
     users
@@ -91,6 +93,7 @@ pub fn main() {
         ),
       ],
       [Upsert],
+      128,
     )
 
   let assert Ok(yahoo_cursor) =
@@ -98,12 +101,13 @@ pub fn main() {
     |> mungo.find_many(
       [#("email", bson.Regex(#("yahoo", "")))],
       [Sort([#("username", bson.Int32(-1))])],
+      128,
     )
-  let _yahoo_users = mungo.to_list(yahoo_cursor)
+  let _yahoo_users = mungo.to_list(yahoo_cursor, 128)
 
   let assert Ok(underage_lindsey_cursor) =
     users
-    |> aggregate([Let([#("minimum_age", bson.Int32(21))])])
+    |> aggregate([Let([#("minimum_age", bson.Int32(21))])], 128)
     |> match([
       #(
         "$expr",
@@ -157,10 +161,10 @@ pub fn main() {
 
   let assert #(option.Some(_underage_lindsey), underage_lindsey_cursor) =
     underage_lindsey_cursor
-    |> mungo.next
+    |> mungo.next(128)
 
   let assert #(option.None, _) =
     underage_lindsey_cursor
-    |> mungo.next
+    |> mungo.next(128)
 }
 ```
