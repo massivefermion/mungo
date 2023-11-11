@@ -129,7 +129,7 @@ pub fn delete_many(
 }
 
 pub fn count_all(collection: client.Collection, timeout: Int) {
-  let cmd = [#("count", bson.Str(collection.name))]
+  let cmd = [#("count", bson.String(collection.name))]
   process.try_call(collection.client, client.Command(cmd, _), timeout)
   |> result.replace_error(error.ActorError)
   |> result.flatten
@@ -148,7 +148,7 @@ pub fn count(
   timeout: Int,
 ) {
   let cmd = [
-    #("count", bson.Str(collection.name)),
+    #("count", bson.String(collection.name)),
     #("query", bson.Document(filter)),
   ]
 
@@ -193,15 +193,15 @@ pub fn insert_many(
           bson.Document(fields) ->
             case list.find(fields, fn(kv) { pair.first(kv) == "_id" }) {
               Ok(#(_, id)) -> id
-              _ -> bson.Str("")
+              _ -> bson.String("")
             }
-          _ -> bson.Str("")
+          _ -> bson.String("")
         }
       },
     )
 
   let cmd = [
-    #("insert", bson.Str(collection.name)),
+    #("insert", bson.String(collection.name)),
     #("documents", bson.Array(docs)),
   ]
 
@@ -219,7 +219,7 @@ pub fn insert_many(
               #("code", bson.Int32(code)),
               #("keyPattern", _),
               #("keyValue", source),
-              #("errmsg", bson.Str(msg)),
+              #("errmsg", bson.String(msg)),
             ]) = error
             error.WriteError(code, msg, source)
           }),
@@ -239,7 +239,10 @@ fn find(
   let body =
     list.fold(
       options,
-      [#("find", bson.Str(collection.name)), #("filter", bson.Document(filter))],
+      [
+        #("find", bson.String(collection.name)),
+        #("filter", bson.Document(filter)),
+      ],
       fn(acc, opt) {
         case opt {
           Sort(sort) -> list.key_set(acc, "sort", bson.Document(sort))
@@ -303,7 +306,7 @@ fn update(
     )
     |> bson.Document
   let cmd = [
-    #("update", bson.Str(collection.name)),
+    #("update", bson.String(collection.name)),
     #("updates", bson.Array([update])),
   ]
 
@@ -334,7 +337,7 @@ fn update(
               #("code", bson.Int32(code)),
               #("keyPattern", _),
               #("keyValue", source),
-              #("errmsg", bson.Str(msg)),
+              #("errmsg", bson.String(msg)),
             ]) = error
             error.WriteError(code, msg, source)
           }),
@@ -353,7 +356,7 @@ fn delete(
   timeout: Int,
 ) {
   let cmd = [
-    #("delete", bson.Str(collection.name)),
+    #("delete", bson.String(collection.name)),
     #(
       "deletes",
       bson.Array([
@@ -386,7 +389,7 @@ fn delete(
               #("code", bson.Int32(code)),
               #("keyPattern", _),
               #("keyValue", source),
-              #("errmsg", bson.Str(msg)),
+              #("errmsg", bson.String(msg)),
             ]) = error
             error.WriteError(code, msg, source)
           }),

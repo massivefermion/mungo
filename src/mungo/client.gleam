@@ -25,23 +25,23 @@ pub type Message {
 }
 
 pub fn start(uri: String, timeout: Int) {
-  use client <- result.then(
-    connect(uri, timeout)
-    |> result.map_error(fn(error: error.Error) {
-      case error {
-        error.ConnectionStringError ->
-          actor.InitFailed(process.Abnormal("Invalid connection string"))
-        error.TCPError(_) -> {
-          actor.InitFailed(process.Abnormal("TCP connection error"))
-        }
-        _ -> actor.InitFailed(process.Abnormal(""))
+  actor.start_spec(actor.Spec(
+    init: fn() {
+      case connect(uri, timeout) {
+        Ok(client) -> actor.Ready(client, process.new_selector())
+        Error(error) ->
+          case error {
+            error.ConnectionStringError ->
+              actor.Failed("Invalid connection string")
+            error.TCPError(_) -> {
+              actor.Failed("TCP connection error")
+            }
+            _ -> actor.Failed("Unknown error")
+          }
       }
-    }),
-  )
-
-  use actor <- result.then(actor.start(
-    client,
-    fn(msg: Message, client) {
+    },
+    init_timeout: timeout,
+    loop: fn(msg: Message, client) {
       case msg {
         Command(cmd, reply_with) -> {
           case execute(client, cmd, timeout) {
@@ -66,14 +66,6 @@ pub fn start(uri: String, timeout: Int) {
       }
     },
   ))
-
-  let client_pid = process.subject_owner(actor)
-  list.each(
-    client.connections,
-    fn(conn) { change_socket_owner(conn.socket, client_pid) },
-  )
-
-  Ok(actor)
 }
 
 pub opaque type Connection {
@@ -139,7 +131,7 @@ fn execute(
         case reply {
           [
             #("ok", bson.Double(0.0)),
-            #("errmsg", bson.Str(msg)),
+            #("errmsg", bson.String(msg)),
             #("code", bson.Int32(code)),
             #("codeName", _),
           ] -> {
@@ -181,7 +173,7 @@ fn execute(
                       case reply {
                         [
                           #("ok", bson.Double(0.0)),
-                          #("errmsg", bson.Str(msg)),
+                          #("errmsg", bson.String(msg)),
                           #("code", bson.Int32(code)),
                           #("codeName", _),
                         ] -> {
@@ -202,7 +194,7 @@ fn execute(
                       case reply {
                         [
                           #("ok", bson.Double(0.0)),
-                          #("errmsg", bson.Str(msg)),
+                          #("errmsg", bson.String(msg)),
                           #("code", bson.Int32(code)),
                           #("codeName", _),
                         ] -> {
@@ -278,7 +270,7 @@ fn send_cmd(
   cmd: List(#(String, bson.Value)),
   timeout: Int,
 ) -> Result(List(#(String, bson.Value)), error.Error) {
-  let cmd = list.key_set(cmd, "$db", bson.Str(db))
+  let cmd = list.key_set(cmd, "$db", bson.String(db))
   let encoded = encode(cmd)
   let size = bit_array.byte_size(encoded) + 21
 
@@ -381,6 +373,3 @@ fn parse_connection_string(uri: String) {
     _ -> Error(error.ConnectionStringError)
   }
 }
-
-@external(erlang, "gen_tcp", "controlling_process")
-fn change_socket_owner(socket: mug.Socket, pid: process.Pid) -> b

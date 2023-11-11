@@ -64,15 +64,15 @@ pub fn main() {
     |> mungo.insert_many(
       [
         [
-          #("username", bson.Str("jmorrow")),
-          #("name", bson.Str("vincent freeman")),
-          #("email", bson.Str("jmorrow@gattaca.eu")),
+          #("username", bson.String("jmorrow")),
+          #("name", bson.String("vincent freeman")),
+          #("email", bson.String("jmorrow@gattaca.eu")),
           #("age", bson.Int32(32)),
         ],
         [
-          #("username", bson.Str("real-jerome")),
-          #("name", bson.Str("jerome eugene morrow")),
-          #("email", bson.Str("real-jerome@running.at")),
+          #("username", bson.String("real-jerome")),
+          #("name", bson.String("jerome eugene morrow")),
+          #("email", bson.String("real-jerome@running.at")),
           #("age", bson.Int32(32)),
         ],
       ],
@@ -82,13 +82,13 @@ pub fn main() {
   let _ =
     users
     |> mungo.update_one(
-      [#("username", bson.Str("real-jerome"))],
+      [#("username", bson.String("real-jerome"))],
       [
         #(
           "$set",
           bson.Document([
-            #("username", bson.Str("eugene")),
-            #("email", bson.Str("eugene@running.at ")),
+            #("username", bson.String("eugene")),
+            #("email", bson.String("eugene@running.at ")),
           ]),
         ),
       ],
@@ -112,7 +112,10 @@ pub fn main() {
       #(
         "$expr",
         bson.Document([
-          #("$lt", bson.Array([bson.Str("$age"), bson.Str("$$minimum_age")])),
+          #(
+            "$lt",
+            bson.Array([bson.String("$age"), bson.String("$$minimum_age")]),
+          ),
         ]),
       ),
     ])
@@ -124,7 +127,10 @@ pub fn main() {
             "$arrayElemAt",
             bson.Array([
               bson.Document([
-                #("$split", bson.Array([bson.Str("$name"), bson.Str(" ")])),
+                #(
+                  "$split",
+                  bson.Array([bson.String("$name"), bson.String(" ")]),
+                ),
               ]),
               bson.Int32(0),
             ]),
@@ -132,10 +138,10 @@ pub fn main() {
         ]),
       ),
     ])
-    |> match([#("first_name", bson.Str("lindsey"))])
+    |> match([#("first_name", bson.String("lindsey"))])
     |> pipelined_lookup(
       from: "profiles",
-      define: [#("user", bson.Str("$username"))],
+      define: [#("user", bson.String("$username"))],
       pipeline: [
         [
           #(
@@ -146,7 +152,7 @@ pub fn main() {
                 bson.Document([
                   #(
                     "$eq",
-                    bson.Array([bson.Str("$username"), bson.Str("$$user")]),
+                    bson.Array([bson.String("$username"), bson.String("$$user")]),
                   ),
                 ]),
               ),

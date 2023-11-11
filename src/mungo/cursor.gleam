@@ -74,7 +74,7 @@ fn to_list_internal(cursor, storage, timeout) {
 fn get_more(cursor: Cursor, timeout: Int) -> Result(Cursor, error.Error) {
   let cmd = [
     #("getMore", bson.Int64(cursor.id)),
-    #("collection", bson.Str(cursor.collection.name)),
+    #("collection", bson.String(cursor.collection.name)),
     #("batchSize", bson.Int32(cursor.batch_size)),
   ]
 

@@ -58,10 +58,10 @@ pub fn lookup(
     #(
       "$lookup",
       bson.Document([
-        #("from", bson.Str(from)),
-        #("localField", bson.Str(local_field)),
-        #("foreignField", bson.Str(foreign_field)),
-        #("as", bson.Str(alias)),
+        #("from", bson.String(from)),
+        #("localField", bson.String(local_field)),
+        #("foreignField", bson.String(foreign_field)),
+        #("as", bson.String(alias)),
       ]),
     ),
   )
@@ -80,10 +80,10 @@ pub fn pipelined_lookup(
     #(
       "$lookup",
       bson.Document([
-        #("from", bson.Str(from)),
+        #("from", bson.String(from)),
         #("let", bson.Document(definitions)),
         #("pipeline", bson.Array(list.map(lookup_pipeline, bson.Document))),
-        #("as", bson.Str(alias)),
+        #("as", bson.String(alias)),
       ]),
     ),
   )
@@ -99,7 +99,7 @@ pub fn unwind(
     #(
       "$unwind",
       bson.Document([
-        #("path", bson.Str(path)),
+        #("path", bson.String(path)),
         #(
           "preserveNullAndEmptyArrays",
           bson.Boolean(preserve_null_and_empty_arrays),
@@ -120,8 +120,8 @@ pub fn unwind_with_index(
     #(
       "$unwind",
       bson.Document([
-        #("path", bson.Str(path)),
-        #("includeArrayIndex", bson.Str(index_field)),
+        #("path", bson.String(path)),
+        #("includeArrayIndex", bson.String(index_field)),
         #(
           "preserveNullAndEmptyArrays",
           bson.Boolean(preserve_null_and_empty_arrays),
@@ -160,7 +160,7 @@ pub fn to_cursor(pipeline: Pipeline) {
     list.fold(
       pipeline.options,
       [
-        #("aggregate", bson.Str(pipeline.collection.name)),
+        #("aggregate", bson.String(pipeline.collection.name)),
         #(
           "pipeline",
           pipeline.stages

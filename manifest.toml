@@ -2,12 +2,12 @@
 # You typically do not need to edit this file
 
 packages = [
-  { name = "birl", version = "0.17.0", build_tools = ["gleam"], requirements = ["ranger", "gleam_stdlib"], otp_app = "birl", source = "hex", outer_checksum = "AEA55D2329E13E72CB7FCC0FBAE640C453E6C9BF45B8D9DB4D7457F7F5C18F49" },
-  { name = "bison", version = "0.29.1", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_crypto", "birl"], otp_app = "bison", source = "hex", outer_checksum = "6DE4A29C84E29B009932A4E5FF6734E325E70254CF759AE09A2ECE09C79529E6" },
+  { name = "birl", version = "0.17.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "ranger"], otp_app = "birl", source = "hex", outer_checksum = "AEA55D2329E13E72CB7FCC0FBAE640C453E6C9BF45B8D9DB4D7457F7F5C18F49" },
+  { name = "bison", version = "0.31.0", build_tools = ["gleam"], requirements = ["birl", "gleam_stdlib"], otp_app = "bison", source = "hex", outer_checksum = "58AD6305DD85FABB437A240AD8629249071FE9BA070C65132086D4141256D2DF" },
   { name = "gleam_bitwise", version = "1.3.1", build_tools = ["gleam"], requirements = [], otp_app = "gleam_bitwise", source = "hex", outer_checksum = "B36E1D3188D7F594C7FD4F43D0D2CE17561DE896202017548578B16FE1FE9EFC" },
   { name = "gleam_crypto", version = "0.5.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_bitwise"], otp_app = "gleam_crypto", source = "hex", outer_checksum = "B9F23F1902341FC94FA246FA21F11246665D9CE745D50CB3E719A16DA30AD569" },
   { name = "gleam_erlang", version = "0.23.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_erlang", source = "hex", outer_checksum = "DA7A8E5540948DE10EB01B530869F8FF2FF6CAD8CFDA87626CE6EF63EBBF87CB" },
-  { name = "gleam_otp", version = "0.8.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_erlang"], otp_app = "gleam_otp", source = "hex", outer_checksum = "18EF8242A5E54BA92F717C7222F03B3228AEE00D1F286D4C56C3E8C18AA2588E" },
+  { name = "gleam_otp", version = "0.8.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_stdlib"], otp_app = "gleam_otp", source = "hex", outer_checksum = "18EF8242A5E54BA92F717C7222F03B3228AEE00D1F286D4C56C3E8C18AA2588E" },
   { name = "gleam_stdlib", version = "0.32.0", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "07D64C26D014CF570F8ACADCE602761EA2E74C842D26F2FD49B0D61973D9966F" },
   { name = "gleeunit", version = "1.0.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "D3682ED8C5F9CAE1C928F2506DE91625588CC752495988CBE0F5653A42A6F334" },
   { name = "mug", version = "0.2.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_stdlib"], otp_app = "mug", source = "hex", outer_checksum = "35064CE144C23AD60842F44C989D70DD7A8923B8A74885F06E09B73DD3CC5283" },
@@ -15,7 +15,7 @@ packages = [
 ]
 
 [requirements]
-bison = { version = "~> 0.29" }
+bison = { version = "~> 0.31" }
 gleam_crypto = { version = "~> 0.5" }
 gleam_erlang = { version = "~> 0.23" }
 gleam_otp = { version = "~> 0.8" }

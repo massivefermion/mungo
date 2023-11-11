@@ -25,7 +25,7 @@ pub fn first_message(payload) {
 
   [
     #("saslStart", bson.Boolean(True)),
-    #("mechanism", bson.Str("SCRAM-SHA-256")),
+    #("mechanism", bson.String("SCRAM-SHA-256")),
     #("payload", bson.Binary(bson.Generic(payload))),
     #("autoAuthorize", bson.Boolean(True)),
     #("options", bson.Document([#("skipEmptyExchange", bson.Boolean(True))])),
