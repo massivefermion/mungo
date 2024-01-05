@@ -1,30 +1,25 @@
 name = "mungo"
 target = "erlang"
-version = "0.23.0"
+version = "0.24.0"
 
 description = "A MongoDB driver for Gleam (formerly gleam_mongo)"
 gleam = ">= 0.32.0"
 licences = ["Apache-2.0"]
 links = [
-  {title = "Gleam", href = "https://gleam.run"},
-  {title = "MongoDB", href = "https://www.mongodb.com"},
-  {title = "bison", href = "https://hexdocs.pm/bison"},
+  { title = "Gleam", href = "https://gleam.run" },
+  { title = "MongoDB", href = "https://www.mongodb.com" },
+  { title = "bison", href = "https://hexdocs.pm/bison" },
 ]
-repository = {type = "github", user = "massivefermion", repo = "mungo"}
+repository = { type = "github", user = "massivefermion", repo = "mungo" }
 
-internal_modules = [
-  "mungo/tcp",
-  "mungo/scram",
-  "mungo/cursor",
-  "mungo/client",
-]
+internal_modules = ["mungo/tcp", "mungo/scram", "mungo/cursor", "mungo/client"]
 
 [dependencies]
-bison = "~> 0.31"
+bison = "~> 1.3"
 gleam_crypto = "~> 0.5"
-gleam_erlang = "~> 0.23"
-gleam_otp = "~> 0.8"
-gleam_stdlib = "~> 0.32"
+gleam_erlang = "~> 0.24"
+gleam_otp = "~> 0.9"
+gleam_stdlib = "~> 0.34"
 mug = "~> 0.2"
 
 [dev-dependencies]

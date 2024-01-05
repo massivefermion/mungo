@@ -1,4 +1,5 @@
 import gleam/list
+import gleam/dict
 import gleam/pair
 import gleam/option
 import gleam/result
@@ -37,6 +38,7 @@ pub fn insert_one(collection, doc, timeout) {
   {
     Ok(InsertResult(inserted: _, inserted_ids: [id])) -> Ok(id)
     Error(error) -> Error(error)
+    _ -> Error(error.StructureError)
   }
 }
 
@@ -134,7 +136,7 @@ pub fn count_all(collection: client.Collection, timeout: Int) {
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
-    case list.key_find(reply, "n") {
+    case dict.get(reply, "n") {
       Ok(bson.Int32(n)) -> Ok(n)
       _ -> Error(error.StructureError)
     }
@@ -149,16 +151,16 @@ pub fn count(
 ) {
   let cmd = [
     #("count", bson.String(collection.name)),
-    #("query", bson.Document(filter)),
+    #("query", bson.Document(dict.from_list(filter))),
   ]
 
   process.try_call(collection.client, client.Command(cmd, _), timeout)
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
-    case list.key_find(reply, "n") {
+    case dict.get(reply, "n") {
       Ok(bson.Int32(n)) -> Ok(n)
-      Error(Nil) -> Error(error.StructureError)
+      _ -> Error(error.StructureError)
     }
   })
   |> result.flatten
@@ -170,35 +172,30 @@ pub fn insert_many(
   timeout: Int,
 ) -> Result(InsertResult, error.Error) {
   let docs =
-    list.map(
-      docs,
-      fn(fields) {
-        case list.find(fields, fn(kv) { pair.first(kv) == "_id" }) {
-          Ok(_) -> fields
-          Error(Nil) -> {
-            let id = object_id.new()
-            let fields = list.prepend(fields, #("_id", bson.ObjectId(id)))
-            fields
-          }
+    list.map(docs, fn(fields) {
+      case list.find(fields, fn(kv) { pair.first(kv) == "_id" }) {
+        Ok(_) -> fields
+        Error(Nil) -> {
+          let id = object_id.new()
+          let fields = list.prepend(fields, #("_id", bson.ObjectId(id)))
+          fields
         }
-        |> bson.Document
-      },
-    )
+      }
+      |> dict.from_list
+      |> bson.Document
+    })
 
   let inserted_ids =
-    list.map(
-      docs,
-      fn(d) {
-        case d {
-          bson.Document(fields) ->
-            case list.find(fields, fn(kv) { pair.first(kv) == "_id" }) {
-              Ok(#(_, id)) -> id
-              _ -> bson.String("")
-            }
-          _ -> bson.String("")
-        }
-      },
-    )
+    list.map(docs, fn(d) {
+      case d {
+        bson.Document(fields) ->
+          case dict.get(fields, "_id") {
+            Ok(id) -> id
+            _ -> bson.String("")
+          }
+        _ -> bson.String("")
+      }
+    })
 
   let cmd = [
     #("insert", bson.String(collection.name)),
@@ -209,22 +206,22 @@ pub fn insert_many(
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
-    case [list.key_find(reply, "n"), list.key_find(reply, "writeErrors")] {
-      [_, Ok(bson.Array(errors))] ->
+    case #(dict.get(reply, "n"), dict.get(reply, "writeErrors")) {
+      #(_, Ok(bson.Array(errors))) ->
         Error(error.WriteErrors(
           errors
           |> list.map(fn(error) {
-            let assert bson.Document([
-              #("index", _),
-              #("code", bson.Int32(code)),
-              #("keyPattern", _),
-              #("keyValue", source),
-              #("errmsg", bson.String(msg)),
-            ]) = error
+            let assert bson.Document(fields) = error
+            let assert #(Ok(bson.Int32(code)), Ok(source), Ok(bson.String(msg))) = #(
+              dict.get(fields, "code"),
+              dict.get(fields, "keyValue"),
+              dict.get(fields, "errmsg"),
+            )
             error.WriteError(code, msg, source)
           }),
         ))
-      [Ok(bson.Int32(n)), _] -> Ok(InsertResult(n, inserted_ids))
+      #(Ok(bson.Int32(n)), _) -> Ok(InsertResult(n, inserted_ids))
+      _ -> Error(error.StructureError)
     }
   })
   |> result.flatten
@@ -241,13 +238,18 @@ fn find(
       options,
       [
         #("find", bson.String(collection.name)),
-        #("filter", bson.Document(filter)),
+        #("filter", bson.Document(dict.from_list(filter))),
       ],
       fn(acc, opt) {
         case opt {
-          Sort(sort) -> list.key_set(acc, "sort", bson.Document(sort))
+          Sort(sort) ->
+            list.key_set(acc, "sort", bson.Document(dict.from_list(sort)))
           Projection(projection) ->
-            list.key_set(acc, "projection", bson.Document(projection))
+            list.key_set(
+              acc,
+              "projection",
+              bson.Document(dict.from_list(projection)),
+            )
           Skip(skip) -> list.key_set(acc, "skip", bson.Int32(skip))
           Limit(limit) -> list.key_set(acc, "limit", bson.Int32(limit))
           BatchSize(size) -> list.key_set(acc, "batchSize", bson.Int32(size))
@@ -259,12 +261,10 @@ fn find(
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
-    case list.key_find(reply, "cursor") {
+    case dict.get(reply, "cursor") {
       Ok(bson.Document(cursor)) ->
-        case
-          [list.key_find(cursor, "id"), list.key_find(cursor, "firstBatch")]
-        {
-          [Ok(bson.Int64(id)), Ok(bson.Array(batch))] ->
+        case #(dict.get(cursor, "id"), dict.get(cursor, "firstBatch")) {
+          #(Ok(bson.Int64(id)), Ok(bson.Array(batch))) ->
             cursor.new(collection, id, batch)
             |> Ok
 
@@ -288,8 +288,8 @@ fn update(
     list.fold(
       options,
       [
-        #("q", bson.Document(filter)),
-        #("u", bson.Document(change)),
+        #("q", bson.Document(dict.from_list(filter))),
+        #("u", bson.Document(dict.from_list(change))),
         #("multi", bson.Boolean(multi)),
       ],
       fn(acc, opt) {
@@ -299,11 +299,16 @@ fn update(
             list.key_set(
               acc,
               "arrayFilters",
-              bson.Array(list.map(filters, bson.Document)),
+              bson.Array(
+                filters
+                |> list.map(dict.from_list)
+                |> list.map(bson.Document),
+              ),
             )
         }
       },
     )
+    |> dict.from_list
     |> bson.Document
   let cmd = [
     #("update", bson.String(collection.name)),
@@ -315,30 +320,33 @@ fn update(
   |> result.flatten
   |> result.map(fn(reply) {
     case
-      [
-        list.key_find(reply, "n"),
-        list.key_find(reply, "nModified"),
-        list.key_find(reply, "upserted"),
-        list.key_find(reply, "writeErrors"),
-      ]
+      #(
+        dict.get(reply, "n"),
+        dict.get(reply, "nModified"),
+        dict.get(reply, "upserted"),
+        dict.get(reply, "writeErrors"),
+      )
     {
-      [Ok(bson.Int32(n)), Ok(bson.Int32(modified)), Ok(bson.Array(upserted)), _] ->
-        Ok(UpdateResult(n, modified, upserted))
+      #(
+        Ok(bson.Int32(n)),
+        Ok(bson.Int32(modified)),
+        Ok(bson.Array(upserted)),
+        _,
+      ) -> Ok(UpdateResult(n, modified, upserted))
 
-      [Ok(bson.Int32(n)), Ok(bson.Int32(modified))] ->
+      #(Ok(bson.Int32(n)), Ok(bson.Int32(modified)), _, _) ->
         Ok(UpdateResult(n, modified, []))
 
-      [_, _, _, Ok(bson.Array(errors))] ->
+      #(_, _, _, Ok(bson.Array(errors))) ->
         Error(error.WriteErrors(
           errors
           |> list.map(fn(error) {
-            let assert bson.Document([
-              #("index", _),
-              #("code", bson.Int32(code)),
-              #("keyPattern", _),
-              #("keyValue", source),
-              #("errmsg", bson.String(msg)),
-            ]) = error
+            let assert bson.Document(fields) = error
+            let assert #(Ok(bson.Int32(code)), Ok(source), Ok(bson.String(msg))) = #(
+              dict.get(fields, "code"),
+              dict.get(fields, "keyValue"),
+              dict.get(fields, "errmsg"),
+            )
             error.WriteError(code, msg, source)
           }),
         ))
@@ -360,16 +368,18 @@ fn delete(
     #(
       "deletes",
       bson.Array([
-        bson.Document([
-          #("q", bson.Document(filter)),
-          #(
-            "limit",
-            bson.Int32(case multi {
-              True -> 0
-              False -> 1
-            }),
-          ),
-        ]),
+        bson.Document(
+          dict.from_list([
+            #("q", bson.Document(dict.from_list(filter))),
+            #(
+              "limit",
+              bson.Int32(case multi {
+                True -> 0
+                False -> 1
+              }),
+            ),
+          ]),
+        ),
       ]),
     ),
   ]
@@ -378,19 +388,18 @@ fn delete(
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
-    case [list.key_find(reply, "n"), list.key_find(reply, "writeErrors")] {
-      [Ok(bson.Int32(n)), _] -> Ok(n)
-      [_, Ok(bson.Array(errors))] ->
+    case #(dict.get(reply, "n"), dict.get(reply, "writeErrors")) {
+      #(Ok(bson.Int32(n)), _) -> Ok(n)
+      #(_, Ok(bson.Array(errors))) ->
         Error(error.WriteErrors(
           errors
           |> list.map(fn(error) {
-            let assert bson.Document([
-              #("index", _),
-              #("code", bson.Int32(code)),
-              #("keyPattern", _),
-              #("keyValue", source),
-              #("errmsg", bson.String(msg)),
-            ]) = error
+            let assert bson.Document(fields) = error
+            let assert #(Ok(bson.Int32(code)), Ok(source), Ok(bson.String(msg))) = #(
+              dict.get(fields, "code"),
+              dict.get(fields, "keyValue"),
+              dict.get(fields, "errmsg"),
+            )
             error.WriteError(code, msg, source)
           }),
         ))

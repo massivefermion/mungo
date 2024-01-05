@@ -1,5 +1,6 @@
 import gleam/int
 import gleam/list
+import gleam/dict
 import gleam/result
 import gleam/string
 import gleam/bit_array
@@ -28,39 +29,73 @@ pub fn first_message(payload) {
     #("mechanism", bson.String("SCRAM-SHA-256")),
     #("payload", bson.Binary(bson.Generic(payload))),
     #("autoAuthorize", bson.Boolean(True)),
-    #("options", bson.Document([#("skipEmptyExchange", bson.Boolean(True))])),
+    #(
+      "options",
+      bson.Document(dict.from_list([#("skipEmptyExchange", bson.Boolean(True))]),
+      ),
+    ),
   ]
 }
 
-pub fn parse_first_reply(reply: List(#(String, bson.Value))) {
-  case reply {
-    [#("ok", bson.Double(0.0)), ..] ->
-      Error(error.ServerError(error.AuthenticationFailed("")))
+pub fn parse_first_reply(reply: dict.Dict(String, bson.Value)) {
+  case
+    #(
+      dict.get(reply, "ok"),
+      dict.get(reply, "done"),
+      dict.get(reply, "conversationId"),
+      dict.get(reply, "payload"),
+      dict.get(reply, "errmsg"),
+    )
+  {
+    #(Ok(bson.Double(0.0)), _, _, _, Ok(bson.String(msg))) ->
+      Error(error.ServerError(error.AuthenticationFailed(msg)))
 
-    [
-      #("conversationId", bson.Int32(cid)),
-      #("done", bson.Boolean(False)),
-      #("payload", bson.Binary(bson.Generic(data))),
-      #("ok", bson.Double(1.0)),
-      ..
-    ] -> {
+    #(
+      Ok(bson.Double(1.0)),
+      Ok(bson.Boolean(False)),
+      Ok(bson.Int32(cid)),
+      Ok(bson.Binary(bson.Generic(data))),
+      _,
+    ) -> {
       use data <- result.then(
         generic.to_string(data)
-        |> result.replace_error(error.ServerError(error.AuthenticationFailed(""))),
+        |> result.replace_error(
+          error.ServerError(error.AuthenticationFailed(
+            "First payload is not a string",
+          )),
+        ),
       )
-      use [#("r", rnonce), #("s", salt), #("i", i)] <- result.then(parse_payload(
-        data,
-      ))
-      int.parse(i)
-      |> result.map(fn(iterations) {
-        case iterations >= 4096 {
-          True -> Ok(#(#(rnonce, salt, iterations), data, cid))
-          False -> Error(error.ServerError(error.AuthenticationFailed("")))
-        }
-      })
-      |> result.replace_error(error.ServerError(error.AuthenticationFailed("")))
-      |> result.flatten
+
+      case parse_payload(data) {
+        Ok([#("r", rnonce), #("s", salt), #("i", i)]) ->
+          case int.parse(i) {
+            Ok(iterations) ->
+              case iterations >= 4096 {
+                True -> Ok(#(#(rnonce, salt, iterations), data, cid))
+                False ->
+                  Error(
+                    error.ServerError(error.AuthenticationFailed(
+                      "Iterations should be an integer",
+                    )),
+                  )
+              }
+            Error(Nil) ->
+              Error(
+                error.ServerError(error.AuthenticationFailed(
+                  "Iterations was not found",
+                )),
+              )
+          }
+        _ ->
+          Error(
+            error.ServerError(error.AuthenticationFailed("Invalid first payload",
+            )),
+          )
+      }
     }
+    _ ->
+      Error(error.ServerError(error.AuthenticationFailed("Invalid first reply")),
+      )
   }
 }
 
@@ -75,7 +110,11 @@ pub fn second_message(
 
   use salt <- result.then(
     bit_array.base64_decode(salt)
-    |> result.replace_error(error.ServerError(error.AuthenticationFailed(""))),
+    |> result.replace_error(
+      error.ServerError(error.AuthenticationFailed(
+        "Salt is not base64 encoded string",
+      )),
+    ),
   )
 
   let salted_password = hi(password, salt, iterations)
@@ -130,41 +169,53 @@ pub fn second_message(
 }
 
 pub fn parse_second_reply(
-  reply: List(#(String, bson.Value)),
+  reply: dict.Dict(String, bson.Value),
   server_signature: BitArray,
 ) {
-  case reply {
-    [#("ok", bson.Double(0.0)), ..] ->
+  case
+    #(
+      dict.get(reply, "ok"),
+      dict.get(reply, "done"),
+      dict.get(reply, "payload"),
+    )
+  {
+    #(Ok(bson.Double(0.0)), _, _) ->
       Error(error.ServerError(error.AuthenticationFailed("")))
 
-    [
-      #("conversationId", _),
-      #("done", bson.Boolean(True)),
-      #("payload", bson.Binary(bson.Generic(data))),
-      #("ok", bson.Double(1.0)),
-      ..
-    ] -> {
+    #(
+      Ok(bson.Double(1.0)),
+      Ok(bson.Boolean(True)),
+      Ok(bson.Binary(bson.Generic(data))),
+    ) -> {
       use data <- result.then(
         generic.to_string(data)
-        |> result.replace_error(error.ServerError(error.AuthenticationFailed(""))),
+        |> result.replace_error(
+          error.ServerError(error.AuthenticationFailed("")),
+        ),
       )
 
-      use [#("v", data)] <- result.then(parse_payload(data))
+      case parse_payload(data) {
+        Ok([#("v", data)]) -> {
+          use received_signature <- result.then(
+            bit_array.base64_decode(data)
+            |> result.replace_error(
+              error.ServerError(error.AuthenticationFailed("")),
+            ),
+          )
 
-      use received_signature <- result.then(
-        bit_array.base64_decode(data)
-        |> result.replace_error(error.ServerError(error.AuthenticationFailed(""))),
-      )
-
-      case
-        bit_array.byte_size(server_signature) == bit_array.byte_size(
-          received_signature,
-        ) && crypto.secure_compare(server_signature, received_signature)
-      {
-        True -> Ok(Nil)
-        False -> Error(error.ServerError(error.AuthenticationFailed("")))
+          case
+            bit_array.byte_size(server_signature)
+            == bit_array.byte_size(received_signature)
+            && crypto.secure_compare(server_signature, received_signature)
+          {
+            True -> Ok(Nil)
+            False -> Error(error.ServerError(error.AuthenticationFailed("")))
+          }
+        }
+        _ -> Error(error.ServerError(error.AuthenticationFailed("")))
       }
     }
+    _ -> Error(error.ServerError(error.AuthenticationFailed("")))
   }
 }
 
@@ -196,8 +247,8 @@ fn pbkdf2(
 ) -> BitArray
 
 fn xor(a: BitArray, b: BitArray, storage: BitArray) -> BitArray {
-  let <<fa, ra:bits>> = a
-  let <<fb, rb:bits>> = b
+  let assert <<fa, ra:bits>> = a
+  let assert <<fb, rb:bits>> = b
 
   let new_storage =
     [storage, <<int.bitwise_exclusive_or(fa, fb)>>]

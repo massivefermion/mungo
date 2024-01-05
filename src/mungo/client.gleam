@@ -1,6 +1,7 @@
 import gleam/int
 import gleam/uri
 import gleam/bool
+import gleam/dict
 import gleam/list
 import gleam/string
 import gleam/result
@@ -13,59 +14,61 @@ import mug
 import gleam/otp/actor
 import gleam/erlang/process
 import bison/bson
-import bison.{decode, encode}
+import bison.{decode, encode_list}
 
 pub type Message {
   Shutdown
   GetTimeout(process.Subject(Int))
   Command(
     List(#(String, bson.Value)),
-    process.Subject(Result(List(#(String, bson.Value)), error.Error)),
+    process.Subject(Result(dict.Dict(String, bson.Value), error.Error)),
   )
 }
 
 pub fn start(uri: String, timeout: Int) {
-  actor.start_spec(actor.Spec(
-    init: fn() {
-      case connect(uri, timeout) {
-        Ok(client) -> actor.Ready(client, process.new_selector())
-        Error(error) ->
-          case error {
-            error.ConnectionStringError ->
-              actor.Failed("Invalid connection string")
-            error.TCPError(_) -> {
-              actor.Failed("TCP connection error")
+  actor.start_spec(
+    actor.Spec(
+      init: fn() {
+        case connect(uri, timeout) {
+          Ok(client) -> actor.Ready(client, process.new_selector())
+          Error(error) ->
+            case error {
+              error.ConnectionStringError ->
+                actor.Failed("Invalid connection string")
+              error.TCPError(_) -> actor.Failed("TCP connection error")
+              error.ServerError(error.AuthenticationFailed(error)) ->
+                actor.Failed(error)
+              _ -> actor.Failed("Unknown error")
             }
-            _ -> actor.Failed("Unknown error")
-          }
-      }
-    },
-    init_timeout: timeout,
-    loop: fn(msg: Message, client) {
-      case msg {
-        Command(cmd, reply_with) -> {
-          case execute(client, cmd, timeout) {
-            Ok(#(reply, client)) -> {
-              actor.send(reply_with, Ok(reply))
-              actor.continue(client)
-            }
-
-            Error(error) -> {
-              actor.send(reply_with, Error(error))
-              actor.continue(client)
-            }
-          }
         }
+      },
+      init_timeout: timeout,
+      loop: fn(msg: Message, client) {
+        case msg {
+          Command(cmd, reply_with) -> {
+            case execute(client, cmd, timeout) {
+              Ok(#(reply, client)) -> {
+                actor.send(reply_with, Ok(reply))
+                actor.continue(client)
+              }
 
-        GetTimeout(reply_with) -> {
-          actor.send(reply_with, timeout)
-          actor.continue(client)
+              Error(error) -> {
+                actor.send(reply_with, Error(error))
+                actor.continue(client)
+              }
+            }
+          }
+
+          GetTimeout(reply_with) -> {
+            actor.send(reply_with, timeout)
+            actor.continue(client)
+          }
+
+          Shutdown -> actor.Stop(process.Normal)
         }
-
-        Shutdown -> actor.Stop(process.Normal)
-      }
-    },
-  ))
+      },
+    ),
+  )
 }
 
 pub opaque type Connection {
@@ -85,9 +88,8 @@ fn connect(uri: String, timeout: Int) -> Result(Client, error.Error) {
 
   case info {
     #(auth, hosts, db) -> {
-      use connections <- result.then(list.try_map(
-        hosts,
-        fn(host) {
+      use connections <- result.then(
+        list.try_map(hosts, fn(host) {
           use socket <- result.then(
             tcp.connect(host.0, host.1, timeout)
             |> result.map_error(fn(error) { error.TCPError(error) }),
@@ -95,8 +97,8 @@ fn connect(uri: String, timeout: Int) -> Result(Client, error.Error) {
 
           use is_primary <- result.then(is_primary(socket, db, timeout))
           Ok(Connection(socket, is_primary))
-        },
-      ))
+        }),
+      )
 
       case auth {
         option.None -> Ok(Client(db, connections))
@@ -120,102 +122,109 @@ fn execute(
   client: Client,
   cmd: List(#(String, bson.Value)),
   timeout: Int,
-) -> Result(#(List(#(String, bson.Value)), Client), error.Error) {
+) -> Result(#(dict.Dict(String, bson.Value), Client), error.Error) {
   case client {
     Client(name, connections) -> {
       let assert Ok(Connection(socket, True)) =
         list.find(connections, fn(connection) { connection.primary })
 
-      send_cmd(socket, name, cmd, timeout)
-      |> result.map(fn(reply) {
-        case reply {
-          [
-            #("ok", bson.Double(0.0)),
-            #("errmsg", bson.String(msg)),
-            #("code", bson.Int32(code)),
-            #("codeName", _),
-          ] -> {
-            let assert Ok(error) =
-              list.key_find(error.code_to_server_error, code)
-            let error = error(msg)
+      case send_cmd(socket, name, cmd, timeout) {
+        Ok(reply) ->
+          case
+            #(
+              dict.get(reply, "ok"),
+              dict.get(reply, "errmsg"),
+              dict.get(reply, "code"),
+            )
+          {
+            #(Ok(bson.Double(0.0)), Ok(bson.String(msg)), Ok(bson.Int32(code))) -> {
+              let assert Ok(error) =
+                list.key_find(error.code_to_server_error, code)
+              let error = error(msg)
 
-            case error.is_retriable_error(error) {
-              True ->
-                case error.is_not_primary_error(error) {
-                  True -> {
-                    use connections <- result.then(
-                      client.connections
-                      |> list.try_map(fn(connection) {
-                        use is_primary <- result.then(is_primary(
-                          connection.socket,
-                          client.db,
-                          timeout,
-                        ))
-                        Ok(Connection(socket, is_primary))
-                      }),
-                    )
+              case error.is_retriable_error(error) {
+                True ->
+                  case error.is_not_primary_error(error) {
+                    True -> {
+                      use connections <- result.then(
+                        client.connections
+                        |> list.try_map(fn(connection) {
+                          use is_primary <- result.then(is_primary(
+                            connection.socket,
+                            client.db,
+                            timeout,
+                          ))
+                          Ok(Connection(socket, is_primary))
+                        }),
+                      )
 
-                    let assert Ok(Connection(socket, True)) =
-                      list.find(
-                        connections,
-                        fn(connection) {
+                      let assert Ok(Connection(socket, True)) =
+                        list.find(connections, fn(connection) {
                           case
                             is_primary(connection.socket, client.db, timeout)
                           {
                             Ok(is_primary) -> is_primary
                             Error(_) -> False
                           }
-                        },
-                      )
+                        })
 
-                    send_cmd(socket, name, cmd, timeout)
-                    |> result.map(fn(reply) {
-                      case reply {
-                        [
-                          #("ok", bson.Double(0.0)),
-                          #("errmsg", bson.String(msg)),
-                          #("code", bson.Int32(code)),
-                          #("codeName", _),
-                        ] -> {
-                          let assert Ok(error) =
-                            list.key_find(error.code_to_server_error, code)
-                          Error(error.ServerError(error(msg)))
-                        }
+                      case send_cmd(socket, name, cmd, timeout) {
+                        Ok(reply) ->
+                          case
+                            #(
+                              dict.get(reply, "ok"),
+                              dict.get(reply, "errmsg"),
+                              dict.get(reply, "code"),
+                            )
+                          {
+                            #(
+                              Ok(bson.Double(0.0)),
+                              Ok(bson.String(msg)),
+                              Ok(bson.Int32(code)),
+                            ) -> {
+                              let assert Ok(error) =
+                                list.key_find(error.code_to_server_error, code)
+                              Error(error.ServerError(error(msg)))
+                            }
 
-                        reply -> Ok(#(reply, client))
+                            _ -> Ok(#(reply, client))
+                          }
+                        Error(error) -> Error(error)
                       }
-                    })
-                    |> result.flatten
+                    }
+
+                    False ->
+                      case send_cmd(socket, name, cmd, timeout) {
+                        Ok(reply) ->
+                          case
+                            #(
+                              dict.get(reply, "ok"),
+                              dict.get(reply, "errmsg"),
+                              dict.get(reply, "code"),
+                            )
+                          {
+                            #(
+                              Ok(bson.Double(0.0)),
+                              Ok(bson.String(msg)),
+                              Ok(bson.Int32(code)),
+                            ) -> {
+                              let assert Ok(error) =
+                                list.key_find(error.code_to_server_error, code)
+                              Error(error.ServerError(error(msg)))
+                            }
+
+                            _ -> Ok(#(reply, client))
+                          }
+                        Error(error) -> Error(error)
+                      }
                   }
-
-                  False ->
-                    send_cmd(socket, name, cmd, timeout)
-                    |> result.map(fn(reply) {
-                      case reply {
-                        [
-                          #("ok", bson.Double(0.0)),
-                          #("errmsg", bson.String(msg)),
-                          #("code", bson.Int32(code)),
-                          #("codeName", _),
-                        ] -> {
-                          let assert Ok(error) =
-                            list.key_find(error.code_to_server_error, code)
-                          Error(error.ServerError(error(msg)))
-                        }
-
-                        reply -> Ok(#(reply, client))
-                      }
-                    })
-                    |> result.flatten
-                }
-              False -> Error(error.ServerError(error))
+                False -> Error(error.ServerError(error))
+              }
             }
+            _ -> Ok(#(reply, client))
           }
-
-          reply -> Ok(#(reply, client))
-        }
-      })
-      |> result.flatten
+        Error(error) -> Error(error)
+      }
     }
   }
 }
@@ -223,9 +232,9 @@ fn execute(
 fn is_primary(socket: mug.Socket, db: String, timeout: Int) {
   send_cmd(socket, db, [#("hello", bson.Int32(1))], timeout)
   |> result.map(fn(reply) {
-    case list.key_find(reply, "isWritablePrimary") {
+    case dict.get(reply, "isWritablePrimary") {
       Ok(bson.Boolean(True)) -> True
-      Ok(bson.Boolean(True)) | Error(Nil) -> False
+      _ -> False
     }
   })
 }
@@ -243,9 +252,9 @@ fn authenticate(
 
   use reply <- result.then(send_cmd(socket, auth_source, first, timeout))
 
-  use #(server_params, server_payload, cid) <- result.then(scram.parse_first_reply(
-    reply,
-  ))
+  use #(server_params, server_payload, cid) <- result.then(
+    scram.parse_first_reply(reply),
+  )
 
   use #(second, server_signature) <- result.then(scram.second_message(
     server_params,
@@ -257,10 +266,12 @@ fn authenticate(
 
   use reply <- result.then(send_cmd(socket, auth_source, second, timeout))
 
-  case reply {
-    [#("ok", bson.Double(0.0)), ..] ->
-      Error(error.ServerError(error.AuthenticationFailed("")))
-    reply -> scram.parse_second_reply(reply, server_signature)
+  case dict.get(reply, "ok") {
+    Ok(bson.Double(0.0)) ->
+      Error(
+        error.ServerError(error.AuthenticationFailed("Authentication not ok")),
+      )
+    _ -> scram.parse_second_reply(reply, server_signature)
   }
 }
 
@@ -269,9 +280,12 @@ fn send_cmd(
   db: String,
   cmd: List(#(String, bson.Value)),
   timeout: Int,
-) -> Result(List(#(String, bson.Value)), error.Error) {
-  let cmd = list.key_set(cmd, "$db", bson.String(db))
-  let encoded = encode(cmd)
+) -> Result(dict.Dict(String, bson.Value), error.Error) {
+  let encoded =
+    cmd
+    |> list.key_set("$db", bson.String(db))
+    |> encode_list
+
   let size = bit_array.byte_size(encoded) + 21
 
   let packet =
@@ -280,7 +294,7 @@ fn send_cmd(
 
   tcp.execute(socket, packet, timeout)
   |> result.map(fn(reply) {
-    let <<_:168, rest:bits>> = reply
+    let assert <<_:168, rest:bits>> = reply
     decode(rest)
     |> result.replace_error(error.StructureError)
   })

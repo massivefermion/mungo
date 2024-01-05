@@ -1,4 +1,5 @@
 import gleam/list
+import gleam/dict
 import gleam/option
 import gleam/result
 import gleam/iterator
@@ -82,15 +83,12 @@ fn get_more(cursor: Cursor, timeout: Int) -> Result(Cursor, error.Error) {
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
-    case list.key_find(reply, "cursor") {
+    case dict.get(reply, "cursor") {
       Ok(bson.Document(reply_cursor)) ->
         case
-          [
-            list.key_find(reply_cursor, "id"),
-            list.key_find(reply_cursor, "nextBatch"),
-          ]
+          #(dict.get(reply_cursor, "id"), dict.get(reply_cursor, "nextBatch"))
         {
-          [Ok(bson.Int64(id)), Ok(bson.Array(batch))] ->
+          #(Ok(bson.Int64(id)), Ok(bson.Array(batch))) ->
             new(cursor.collection, id, batch)
             |> Ok
 

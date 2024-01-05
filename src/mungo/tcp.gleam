@@ -26,7 +26,7 @@ fn send(socket: mug.Socket, packet: BitArray) {
 fn internal_receive(
   socket,
   selector,
-  start_time: #(Int, Int, Int),
+  start_time: Int,
   timeout: Int,
   remaining_size: option.Option(Int),
   storage: BitArray,
@@ -42,7 +42,7 @@ fn internal_receive(
       option.None ->
         case bit_array.byte_size(packet) > 4 {
           True -> {
-            let <<size:32-little, _:bits>> = packet
+            let assert <<size:32-little, _:bits>> = packet
             Ok(size - bit_array.byte_size(packet))
           }
           False -> Error(mug.Ebadmsg)
@@ -52,7 +52,7 @@ fn internal_receive(
     })
 
     let storage = bit_array.append(storage, packet)
-    case diff(now(), start_time) >= timeout * 1000 {
+    case now() - start_time >= timeout * 1_000_000 {
       True -> Error(mug.Timeout)
       False ->
         case int.compare(remaining_size, 0) {
@@ -81,8 +81,5 @@ fn mapper(message: mug.TcpMessage) -> Result(BitArray, mug.Error) {
   }
 }
 
-@external(erlang, "erlang", "now")
-fn now() -> #(Int, Int, Int)
-
-@external(erlang, "timer", "now_diff")
-fn diff(end: #(Int, Int, Int), start: #(Int, Int, Int)) -> Int
+@external(erlang, "erlang", "monotonic_time")
+fn now() -> Int
