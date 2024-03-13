@@ -3,11 +3,11 @@
 
 packages = [
   { name = "birl", version = "1.3.2", build_tools = ["gleam"], requirements = ["gleam_stdlib", "ranger"], otp_app = "birl", source = "hex", outer_checksum = "82C09FD40A7273E530E545D997265699C7F748360FC860BD07CD352E0BD049D4" },
-  { name = "bison", version = "1.3.0", build_tools = ["gleam"], requirements = ["juno", "birl", "gleam_json", "gleam_stdlib"], otp_app = "bison", source = "hex", outer_checksum = "00B9715CCAD25EC84E5FCF57E07100486E7AEDC1178FD4A4A8CD3DBC2504CAE0" },
-  { name = "gleam_crypto", version = "0.5.1", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_crypto", source = "hex", outer_checksum = "8DACF0294E82A49ACD755E68EA3C118FD9F71DEF741E049E49E79993A257B698" },
+  { name = "bison", version = "1.3.0", build_tools = ["gleam"], requirements = ["birl", "gleam_json", "gleam_stdlib", "juno"], otp_app = "bison", source = "hex", outer_checksum = "00B9715CCAD25EC84E5FCF57E07100486E7AEDC1178FD4A4A8CD3DBC2504CAE0" },
+  { name = "gleam_crypto", version = "1.3.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_crypto", source = "hex", outer_checksum = "ADD058DEDE8F0341F1ADE3AAC492A224F15700829D9A3A3F9ADF370F875C51B7" },
   { name = "gleam_erlang", version = "0.24.0", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleam_erlang", source = "hex", outer_checksum = "26BDB52E61889F56A291CB34167315780EE4AA20961917314446542C90D1C1A0" },
   { name = "gleam_json", version = "0.7.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "thoas"], otp_app = "gleam_json", source = "hex", outer_checksum = "CB405BD93A8828BCD870463DE29375E7B2D252D9D124C109E5B618AAC00B86FC" },
-  { name = "gleam_otp", version = "0.9.0", build_tools = ["gleam"], requirements = ["gleam_stdlib", "gleam_erlang"], otp_app = "gleam_otp", source = "hex", outer_checksum = "5FADBBEC5ECF3F8B6BE91101D432758503192AE2ADBAD5602158977341489F71" },
+  { name = "gleam_otp", version = "0.9.0", build_tools = ["gleam"], requirements = ["gleam_erlang", "gleam_stdlib"], otp_app = "gleam_otp", source = "hex", outer_checksum = "5FADBBEC5ECF3F8B6BE91101D432758503192AE2ADBAD5602158977341489F71" },
   { name = "gleam_stdlib", version = "0.34.0", build_tools = ["gleam"], requirements = [], otp_app = "gleam_stdlib", source = "hex", outer_checksum = "1FB8454D2991E9B4C0C804544D8A9AD0F6184725E20D63C3155F0AEB4230B016" },
   { name = "gleeunit", version = "1.0.2", build_tools = ["gleam"], requirements = ["gleam_stdlib"], otp_app = "gleeunit", source = "hex", outer_checksum = "D364C87AFEB26BDB4FB8A5ABDE67D635DC9FA52D6AB68416044C35B096C6882D" },
   { name = "juno", version = "1.2.0", build_tools = ["gleam"], requirements = ["gleam_json", "gleam_stdlib"], otp_app = "juno", source = "hex", outer_checksum = "C4E6EE51D6B2F3D5978DD5478C0A2C83FE172E0772E7483D3B5096E39D7572DD" },
@@ -18,7 +18,7 @@ packages = [
 
 [requirements]
 bison = { version = "~> 1.3" }
-gleam_crypto = { version = "~> 0.5" }
+gleam_crypto = { version = "~> 1.3"}
 gleam_erlang = { version = "~> 0.24" }
 gleam_otp = { version = "~> 0.9" }
 gleam_stdlib = { version = "~> 0.34" }
