@@ -30,6 +30,7 @@ gleam add mungo
 - [x] support authentication
 - [x] support mongodb cursors
 - [ ] support connection pooling
+   - The plan is to use [puddle](https://github.com/massivefermion/puddle), but there are still unresolved issues with that package!
 - [ ] support bulk operations
 - [ ] support clusters
 - [ ] support tls
