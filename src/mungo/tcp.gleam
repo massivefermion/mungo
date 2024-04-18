@@ -1,9 +1,10 @@
-import gleam/int
-import gleam/order
-import gleam/result
-import gleam/option
 import gleam/bit_array
 import gleam/erlang/process
+import gleam/int
+import gleam/option
+import gleam/order
+import gleam/result
+
 import mug
 
 pub fn connect(host: String, port: Int, timeout: Int) {

@@ -1,14 +1,16 @@
-import gleam/list
 import gleam/dict
-import gleam/pair
+import gleam/erlang/process
+import gleam/list
 import gleam/option
+import gleam/pair
 import gleam/result
-import mungo/error
-import mungo/cursor
+
 import mungo/client
+import mungo/cursor
+import mungo/error
+
 import bison/bson
 import bison/object_id
-import gleam/erlang/process
 
 pub type FindOption {
   Skip(Int)
@@ -206,8 +208,8 @@ pub fn insert_many(
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
-    case #(dict.get(reply, "n"), dict.get(reply, "writeErrors")) {
-      #(_, Ok(bson.Array(errors))) ->
+    case dict.get(reply, "n"), dict.get(reply, "writeErrors") {
+      _, Ok(bson.Array(errors)) ->
         Error(error.WriteErrors(
           errors
           |> list.map(fn(error) {
@@ -220,8 +222,8 @@ pub fn insert_many(
             error.WriteError(code, msg, source)
           }),
         ))
-      #(Ok(bson.Int32(n)), _) -> Ok(InsertResult(n, inserted_ids))
-      _ -> Error(error.StructureError)
+      Ok(bson.Int32(n)), _ -> Ok(InsertResult(n, inserted_ids))
+      _, _ -> Error(error.StructureError)
     }
   })
   |> result.flatten
@@ -263,12 +265,12 @@ fn find(
   |> result.map(fn(reply) {
     case dict.get(reply, "cursor") {
       Ok(bson.Document(cursor)) ->
-        case #(dict.get(cursor, "id"), dict.get(cursor, "firstBatch")) {
-          #(Ok(bson.Int64(id)), Ok(bson.Array(batch))) ->
+        case dict.get(cursor, "id"), dict.get(cursor, "firstBatch") {
+          Ok(bson.Int64(id)), Ok(bson.Array(batch)) ->
             cursor.new(collection, id, batch)
             |> Ok
 
-          _ -> Error(error.StructureError)
+          _, _ -> Error(error.StructureError)
         }
       _ -> Error(error.StructureError)
     }
@@ -320,24 +322,18 @@ fn update(
   |> result.flatten
   |> result.map(fn(reply) {
     case
-      #(
-        dict.get(reply, "n"),
-        dict.get(reply, "nModified"),
-        dict.get(reply, "upserted"),
-        dict.get(reply, "writeErrors"),
-      )
+      dict.get(reply, "n"),
+      dict.get(reply, "nModified"),
+      dict.get(reply, "upserted"),
+      dict.get(reply, "writeErrors")
     {
-      #(
-        Ok(bson.Int32(n)),
-        Ok(bson.Int32(modified)),
-        Ok(bson.Array(upserted)),
-        _,
-      ) -> Ok(UpdateResult(n, modified, upserted))
+      Ok(bson.Int32(n)), Ok(bson.Int32(modified)), Ok(bson.Array(upserted)), _ ->
+        Ok(UpdateResult(n, modified, upserted))
 
-      #(Ok(bson.Int32(n)), Ok(bson.Int32(modified)), _, _) ->
+      Ok(bson.Int32(n)), Ok(bson.Int32(modified)), _, _ ->
         Ok(UpdateResult(n, modified, []))
 
-      #(_, _, _, Ok(bson.Array(errors))) ->
+      _, _, _, Ok(bson.Array(errors)) ->
         Error(error.WriteErrors(
           errors
           |> list.map(fn(error) {
@@ -351,7 +347,7 @@ fn update(
           }),
         ))
 
-      _ -> Error(error.StructureError)
+      _, _, _, _ -> Error(error.StructureError)
     }
   })
   |> result.flatten
@@ -388,9 +384,9 @@ fn delete(
   |> result.replace_error(error.ActorError)
   |> result.flatten
   |> result.map(fn(reply) {
-    case #(dict.get(reply, "n"), dict.get(reply, "writeErrors")) {
-      #(Ok(bson.Int32(n)), _) -> Ok(n)
-      #(_, Ok(bson.Array(errors))) ->
+    case dict.get(reply, "n"), dict.get(reply, "writeErrors") {
+      Ok(bson.Int32(n)), _ -> Ok(n)
+      _, Ok(bson.Array(errors)) ->
         Error(error.WriteErrors(
           errors
           |> list.map(fn(error) {
@@ -403,7 +399,7 @@ fn delete(
             error.WriteError(code, msg, source)
           }),
         ))
-      _ -> Error(error.StructureError)
+      _, _ -> Error(error.StructureError)
     }
   })
   |> result.flatten

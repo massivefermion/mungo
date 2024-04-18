@@ -1,14 +1,16 @@
 //// for more information, see [here](https://www.mongodb.com/docs/manual/reference/operator/aggregation-pipeline)
 
-import gleam/list
 import gleam/dict
+import gleam/erlang/process
+import gleam/list
 import gleam/queue
 import gleam/result
+
 import mungo/client
 import mungo/cursor
 import mungo/error
+
 import bison/bson
-import gleam/erlang/process
 
 pub opaque type Pipeline {
   Pipeline(
@@ -38,7 +40,7 @@ pub fn append_stage(pipeline: Pipeline, stage: #(String, bson.Value)) {
     options: pipeline.options,
     timeout: pipeline.timeout,
     stages: pipeline.stages
-    |> queue.push_back([stage]),
+      |> queue.push_back([stage]),
   )
 }
 
@@ -168,10 +170,10 @@ pub fn to_cursor(pipeline: Pipeline) {
         #(
           "pipeline",
           pipeline.stages
-          |> queue.to_list
-          |> list.map(fn(stage) { dict.from_list(stage) })
-          |> list.map(fn(stage) { bson.Document(stage) })
-          |> bson.Array,
+            |> queue.to_list
+            |> list.map(fn(stage) { dict.from_list(stage) })
+            |> list.map(fn(stage) { bson.Document(stage) })
+            |> bson.Array,
         ),
         #("cursor", bson.Document(dict.new())),
       ],
@@ -199,12 +201,12 @@ pub fn to_cursor(pipeline: Pipeline) {
   |> result.map(fn(reply) {
     case dict.get(reply, "cursor") {
       Ok(bson.Document(cursor)) ->
-        case #(dict.get(cursor, "id"), dict.get(cursor, "firstBatch")) {
-          #(Ok(bson.Int64(id)), Ok(bson.Array(batch))) ->
+        case dict.get(cursor, "id"), dict.get(cursor, "firstBatch") {
+          Ok(bson.Int64(id)), Ok(bson.Array(batch)) ->
             cursor.new(pipeline.collection, id, batch)
             |> Ok
 
-          _ -> Error(error.StructureError)
+          _, _ -> Error(error.StructureError)
         }
       _ -> Error(error.StructureError)
     }

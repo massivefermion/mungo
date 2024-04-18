@@ -1,11 +1,13 @@
-import gleam/int
-import gleam/list
-import gleam/dict
-import gleam/result
-import gleam/string
 import gleam/bit_array
 import gleam/crypto
+import gleam/dict
+import gleam/int
+import gleam/list
+import gleam/result
+import gleam/string
+
 import mungo/error
+
 import bison/bson
 import bison/generic
 
@@ -31,7 +33,8 @@ pub fn first_message(payload) {
     #("autoAuthorize", bson.Boolean(True)),
     #(
       "options",
-      bson.Document(dict.from_list([#("skipEmptyExchange", bson.Boolean(True))]),
+      bson.Document(
+        dict.from_list([#("skipEmptyExchange", bson.Boolean(True))]),
       ),
     ),
   ]
@@ -39,24 +42,20 @@ pub fn first_message(payload) {
 
 pub fn parse_first_reply(reply: dict.Dict(String, bson.Value)) {
   case
-    #(
-      dict.get(reply, "ok"),
-      dict.get(reply, "done"),
-      dict.get(reply, "conversationId"),
-      dict.get(reply, "payload"),
-      dict.get(reply, "errmsg"),
-    )
+    dict.get(reply, "ok"),
+    dict.get(reply, "done"),
+    dict.get(reply, "conversationId"),
+    dict.get(reply, "payload"),
+    dict.get(reply, "errmsg")
   {
-    #(Ok(bson.Double(0.0)), _, _, _, Ok(bson.String(msg))) ->
+    Ok(bson.Double(0.0)), _, _, _, Ok(bson.String(msg)) ->
       Error(error.ServerError(error.AuthenticationFailed(msg)))
 
-    #(
-      Ok(bson.Double(1.0)),
+    Ok(bson.Double(1.0)),
       Ok(bson.Boolean(False)),
       Ok(bson.Int32(cid)),
       Ok(bson.Binary(bson.Generic(data))),
-      _,
-    ) -> {
+      _ -> {
       use data <- result.then(
         generic.to_string(data)
         |> result.replace_error(
@@ -88,13 +87,15 @@ pub fn parse_first_reply(reply: dict.Dict(String, bson.Value)) {
           }
         _ ->
           Error(
-            error.ServerError(error.AuthenticationFailed("Invalid first payload",
+            error.ServerError(error.AuthenticationFailed(
+              "Invalid first payload",
             )),
           )
       }
     }
-    _ ->
-      Error(error.ServerError(error.AuthenticationFailed("Invalid first reply")),
+    _, _, _, _, _ ->
+      Error(
+        error.ServerError(error.AuthenticationFailed("Invalid first reply")),
       )
   }
 }
@@ -149,7 +150,7 @@ pub fn second_message(
       rnonce,
       ",p=",
       xor(client_key, client_signature, <<>>)
-      |> bit_array.base64_encode(True),
+        |> bit_array.base64_encode(True),
     ]
     |> string.concat
     |> generic.from_string
@@ -173,20 +174,16 @@ pub fn parse_second_reply(
   server_signature: BitArray,
 ) {
   case
-    #(
-      dict.get(reply, "ok"),
-      dict.get(reply, "done"),
-      dict.get(reply, "payload"),
-    )
+    dict.get(reply, "ok"),
+    dict.get(reply, "done"),
+    dict.get(reply, "payload")
   {
-    #(Ok(bson.Double(0.0)), _, _) ->
+    Ok(bson.Double(0.0)), _, _ ->
       Error(error.ServerError(error.AuthenticationFailed("")))
 
-    #(
-      Ok(bson.Double(1.0)),
+    Ok(bson.Double(1.0)),
       Ok(bson.Boolean(True)),
-      Ok(bson.Binary(bson.Generic(data))),
-    ) -> {
+      Ok(bson.Binary(bson.Generic(data))) -> {
       use data <- result.then(
         generic.to_string(data)
         |> result.replace_error(
@@ -215,7 +212,7 @@ pub fn parse_second_reply(
         _ -> Error(error.ServerError(error.AuthenticationFailed("")))
       }
     }
-    _ -> Error(error.ServerError(error.AuthenticationFailed("")))
+    _, _, _ -> Error(error.ServerError(error.AuthenticationFailed("")))
   }
 }
 

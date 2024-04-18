@@ -1,20 +1,22 @@
-import gleam/int
-import gleam/uri
+import gleam/bit_array
 import gleam/bool
 import gleam/dict
-import gleam/list
-import gleam/string
-import gleam/result
-import gleam/option
-import gleam/bit_array
-import mungo/tcp
-import mungo/scram
-import mungo/error
-import mug
-import gleam/otp/actor
 import gleam/erlang/process
-import bison/bson
+import gleam/int
+import gleam/list
+import gleam/option
+import gleam/otp/actor
+import gleam/result
+import gleam/string
+import gleam/uri
+
+import mungo/error
+import mungo/scram
+import mungo/tcp
+
 import bison.{decode, encode_list}
+import bison/bson
+import mug
 
 pub type Message {
   Shutdown
@@ -131,13 +133,11 @@ fn execute(
       case send_cmd(socket, name, cmd, timeout) {
         Ok(reply) ->
           case
-            #(
-              dict.get(reply, "ok"),
-              dict.get(reply, "errmsg"),
-              dict.get(reply, "code"),
-            )
+            dict.get(reply, "ok"),
+            dict.get(reply, "errmsg"),
+            dict.get(reply, "code")
           {
-            #(Ok(bson.Double(0.0)), Ok(bson.String(msg)), Ok(bson.Int32(code))) -> {
+            Ok(bson.Double(0.0)), Ok(bson.String(msg)), Ok(bson.Int32(code)) -> {
               let assert Ok(error) =
                 list.key_find(error.code_to_server_error, code)
               let error = error(msg)
@@ -171,23 +171,20 @@ fn execute(
                       case send_cmd(socket, name, cmd, timeout) {
                         Ok(reply) ->
                           case
-                            #(
-                              dict.get(reply, "ok"),
-                              dict.get(reply, "errmsg"),
-                              dict.get(reply, "code"),
-                            )
+                            dict.get(reply, "ok"),
+                            dict.get(reply, "errmsg"),
+                            dict.get(reply, "code")
                           {
-                            #(
-                              Ok(bson.Double(0.0)),
+                            Ok(bson.Double(0.0)),
                               Ok(bson.String(msg)),
-                              Ok(bson.Int32(code)),
-                            ) -> {
+                              Ok(bson.Int32(code))
+                            -> {
                               let assert Ok(error) =
                                 list.key_find(error.code_to_server_error, code)
                               Error(error.ServerError(error(msg)))
                             }
 
-                            _ -> Ok(#(reply, client))
+                            _, _, _ -> Ok(#(reply, client))
                           }
                         Error(error) -> Error(error)
                       }
@@ -197,23 +194,20 @@ fn execute(
                       case send_cmd(socket, name, cmd, timeout) {
                         Ok(reply) ->
                           case
-                            #(
-                              dict.get(reply, "ok"),
-                              dict.get(reply, "errmsg"),
-                              dict.get(reply, "code"),
-                            )
+                            dict.get(reply, "ok"),
+                            dict.get(reply, "errmsg"),
+                            dict.get(reply, "code")
                           {
-                            #(
-                              Ok(bson.Double(0.0)),
+                            Ok(bson.Double(0.0)),
                               Ok(bson.String(msg)),
-                              Ok(bson.Int32(code)),
-                            ) -> {
+                              Ok(bson.Int32(code))
+                            -> {
                               let assert Ok(error) =
                                 list.key_find(error.code_to_server_error, code)
                               Error(error.ServerError(error(msg)))
                             }
 
-                            _ -> Ok(#(reply, client))
+                            _, _, _ -> Ok(#(reply, client))
                           }
                         Error(error) -> Error(error)
                       }
@@ -221,7 +215,7 @@ fn execute(
                 False -> Error(error.ServerError(error))
               }
             }
-            _ -> Ok(#(reply, client))
+            _, _, _ -> Ok(#(reply, client))
           }
         Error(error) -> Error(error)
       }
@@ -365,7 +359,7 @@ fn parse_connection_string(uri: String) {
       )
       Ok(#(
         auth
-        |> option.map(fn(auth) { #(auth.0, auth.1, db) }),
+          |> option.map(fn(auth) { #(auth.0, auth.1, db) }),
         hosts,
         db,
       ))
@@ -378,7 +372,7 @@ fn parse_connection_string(uri: String) {
       )
       Ok(#(
         auth
-        |> option.map(fn(auth) { #(auth.0, auth.1, auth_source) }),
+          |> option.map(fn(auth) { #(auth.0, auth.1, auth_source) }),
         hosts,
         db,
       ))

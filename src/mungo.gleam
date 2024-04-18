@@ -1,6 +1,6 @@
+import mungo/client
 import mungo/crud
 import mungo/cursor
-import mungo/client
 
 /// The connection uri must specify the database
 pub fn start(uri, timeout) {

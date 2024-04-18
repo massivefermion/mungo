@@ -1,5 +1,5 @@
-import mug
 import bison/bson
+import mug
 
 pub type Error {
   StructureError

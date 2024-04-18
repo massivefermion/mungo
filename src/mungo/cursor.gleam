@@ -1,12 +1,14 @@
-import gleam/list
 import gleam/dict
+import gleam/erlang/process
+import gleam/iterator
+import gleam/list
 import gleam/option
 import gleam/result
-import gleam/iterator
-import mungo/error
+
 import mungo/client
+import mungo/error
+
 import bison/bson
-import gleam/erlang/process
 
 pub opaque type Cursor {
   Cursor(
@@ -85,14 +87,12 @@ fn get_more(cursor: Cursor, timeout: Int) -> Result(Cursor, error.Error) {
   |> result.map(fn(reply) {
     case dict.get(reply, "cursor") {
       Ok(bson.Document(reply_cursor)) ->
-        case
-          #(dict.get(reply_cursor, "id"), dict.get(reply_cursor, "nextBatch"))
-        {
-          #(Ok(bson.Int64(id)), Ok(bson.Array(batch))) ->
+        case dict.get(reply_cursor, "id"), dict.get(reply_cursor, "nextBatch") {
+          Ok(bson.Int64(id)), Ok(bson.Array(batch)) ->
             new(cursor.collection, id, batch)
             |> Ok
 
-          _ -> Error(error.StructureError)
+          _, _ -> Error(error.StructureError)
         }
       _ -> Error(error.StructureError)
     }
