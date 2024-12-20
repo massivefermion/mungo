@@ -301,7 +301,7 @@ fn parse_connection_string(uri: String) {
     !string.starts_with(uri, "mongodb://"),
     Error(error.ConnectionStringError),
   )
-  let uri = string.drop_left(uri, 10)
+  let uri = string.drop_start(uri, 10)
 
   use #(auth, rest) <- result.then(case string.split_once(uri, "@") {
     Ok(#(auth, rest)) ->

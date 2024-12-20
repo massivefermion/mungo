@@ -55,7 +55,8 @@ pub fn parse_first_reply(reply: dict.Dict(String, bson.Value)) {
       Ok(bson.Boolean(False)),
       Ok(bson.Int32(cid)),
       Ok(bson.Binary(bson.Generic(data))),
-      _ -> {
+      _
+    -> {
       use data <- result.then(
         generic.to_string(data)
         |> result.replace_error(
@@ -183,7 +184,8 @@ pub fn parse_second_reply(
 
     Ok(bson.Double(1.0)),
       Ok(bson.Boolean(True)),
-      Ok(bson.Binary(bson.Generic(data))) -> {
+      Ok(bson.Binary(bson.Generic(data)))
+    -> {
       use data <- result.then(
         generic.to_string(data)
         |> result.replace_error(
@@ -251,8 +253,8 @@ fn xor(a: BitArray, b: BitArray, storage: BitArray) -> BitArray {
     [storage, <<int.bitwise_exclusive_or(fa, fb)>>]
     |> bit_array.concat
 
-  case [ra, rb] {
-    [<<>>, <<>>] -> new_storage
-    _ -> xor(ra, rb, new_storage)
+  case ra, rb {
+    <<>>, <<>> -> new_storage
+    _, _ -> xor(ra, rb, new_storage)
   }
 }

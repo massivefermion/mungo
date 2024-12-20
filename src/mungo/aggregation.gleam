@@ -1,9 +1,9 @@
 //// for more information, see [here](https://www.mongodb.com/docs/manual/reference/operator/aggregation-pipeline)
 
+import gleam/deque
 import gleam/dict
 import gleam/erlang/process
 import gleam/list
-import gleam/queue
 import gleam/result
 
 import mungo/client
@@ -17,7 +17,7 @@ pub opaque type Pipeline {
     collection: client.Collection,
     options: List(AggregateOption),
     timeout: Int,
-    stages: queue.Queue(List(#(String, bson.Value))),
+    stages: deque.Deque(List(#(String, bson.Value))),
   )
 }
 
@@ -31,7 +31,7 @@ pub fn aggregate(
   options: List(AggregateOption),
   timeout: Int,
 ) -> Pipeline {
-  Pipeline(collection, options, timeout, stages: queue.new())
+  Pipeline(collection, options, timeout, stages: deque.new())
 }
 
 pub fn append_stage(pipeline: Pipeline, stage: #(String, bson.Value)) {
@@ -40,7 +40,7 @@ pub fn append_stage(pipeline: Pipeline, stage: #(String, bson.Value)) {
     options: pipeline.options,
     timeout: pipeline.timeout,
     stages: pipeline.stages
-      |> queue.push_back([stage]),
+      |> deque.push_back([stage]),
   )
 }
 
@@ -170,7 +170,7 @@ pub fn to_cursor(pipeline: Pipeline) {
         #(
           "pipeline",
           pipeline.stages
-            |> queue.to_list
+            |> deque.to_list
             |> list.map(fn(stage) { dict.from_list(stage) })
             |> list.map(fn(stage) { bson.Document(stage) })
             |> bson.Array,

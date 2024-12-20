@@ -2,6 +2,9 @@ import mungo/client
 import mungo/crud
 import mungo/cursor
 
+pub type Message =
+  client.Message
+
 /// The connection uri must specify the database
 pub fn start(uri, timeout) {
   client.start(uri, timeout)

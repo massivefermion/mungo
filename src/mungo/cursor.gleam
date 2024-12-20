@@ -1,9 +1,9 @@
 import gleam/dict
 import gleam/erlang/process
-import gleam/iterator
 import gleam/list
 import gleam/option
 import gleam/result
+import gleam/yielder
 
 import mungo/client
 import mungo/error
@@ -15,7 +15,7 @@ pub opaque type Cursor {
     collection: client.Collection,
     id: Int,
     batch_size: Int,
-    iterator: iterator.Iterator(bson.Value),
+    yielder: yielder.Yielder(bson.Value),
   )
 }
 
@@ -24,21 +24,21 @@ pub fn to_list(cursor: Cursor, timeout: Int) {
 }
 
 pub fn next(cursor: Cursor, timeout: Int) {
-  case iterator.step(cursor.iterator) {
-    iterator.Next(doc, rest) -> #(
+  case yielder.step(cursor.yielder) {
+    yielder.Next(doc, rest) -> #(
       option.Some(doc),
       Cursor(cursor.collection, cursor.id, cursor.batch_size, rest),
     )
-    iterator.Done ->
+    yielder.Done ->
       case cursor.id {
         0 -> #(
           option.None,
-          Cursor(cursor.collection, 0, cursor.batch_size, iterator.empty()),
+          Cursor(cursor.collection, 0, cursor.batch_size, yielder.empty()),
         )
         _ -> {
           let assert Ok(new_cursor) = get_more(cursor, timeout)
-          case iterator.step(new_cursor.iterator) {
-            iterator.Next(doc, rest) -> #(
+          case yielder.step(new_cursor.yielder) {
+            yielder.Next(doc, rest) -> #(
               option.Some(doc),
               Cursor(
                 cursor.collection,
@@ -47,13 +47,13 @@ pub fn next(cursor: Cursor, timeout: Int) {
                 rest,
               ),
             )
-            iterator.Done -> #(
+            yielder.Done -> #(
               option.None,
               Cursor(
                 cursor.collection,
                 new_cursor.id,
                 new_cursor.batch_size,
-                iterator.empty(),
+                yielder.empty(),
               ),
             )
           }
@@ -63,7 +63,7 @@ pub fn next(cursor: Cursor, timeout: Int) {
 }
 
 pub fn new(collection: client.Collection, id: Int, batch: List(bson.Value)) {
-  Cursor(collection, id, list.length(batch), iterator.from_list(batch))
+  Cursor(collection, id, list.length(batch), yielder.from_list(batch))
 }
 
 fn to_list_internal(cursor, storage, timeout) {
